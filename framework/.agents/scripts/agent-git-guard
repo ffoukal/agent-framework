@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# agent-git-guard — PreToolUse hook that mechanically enforces the AGENTS.md git rules.
+# Claude Code pipes the tool call as JSON on stdin; exit 2 blocks the call and shows
+# stderr to the agent. Wired into .claude/settings.json by install.sh/update.sh.
+# OpenCode/Codex have no identical hook point — there the rules stay prose-enforced.
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+CONFIG="$AGENTS_DIR/project/config.yml"
+
+INPUT=$(cat)
+
+# Extract .tool_input.command from the hook JSON (jq, then python3, else allow).
+if command -v jq >/dev/null 2>&1; then
+  CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
+elif command -v python3 >/dev/null 2>&1; then
+  CMD=$(printf '%s' "$INPUT" | python3 -c \
+    'import json,sys;print(json.load(sys.stdin).get("tool_input",{}).get("command",""))' \
+    2>/dev/null || true)
+else
+  exit 0
+fi
+[ -n "$CMD" ] || exit 0
+
+block() {
+  echo "BLOCKED by agent-git-guard: $1" >&2
+  echo "See the Git rules in AGENTS.md." >&2
+  exit 2
+}
+
+# A git subcommand match anywhere in the command line (handles `cd x && git push`).
+# $1 is the subcommand pattern; a word boundary (space, separator, or EOL) must follow.
+has_git() {
+  printf '%s' "$CMD" \
+    | grep -qE "(^|[;&|[:space:]])git([[:space:]]+-[-A-Za-z0-9=./]+)*[[:space:]]+$1([[:space:];&|]|$)"
+}
+has_flag() { printf '%s' "$CMD" | grep -qE "(^|[[:space:]])$1([[:space:];&|]|$)"; }
+
+# --- universal rules: never rewrite history, never push ---------------------
+has_git 'push'          && block "agents never run 'git push' — pushing is ALWAYS human"
+has_git 'rebase'        && block "agents never run 'git rebase'"
+has_git 'reset[[:space:]][^;&|]*--hard' && block "agents never run 'git reset --hard'"
+has_git 'commit[[:space:]][^;&|]*--amend' && block "agents never run 'git commit --amend'"
+has_git 'filter-branch' && block "agents never rewrite history (filter-branch)"
+if has_git 'branch' && has_flag '-(D|d|-delete)'; then
+  block "agents never delete branches"
+fi
+
+# --- mode-dependent rule: git commit only in commits.mode: agent ------------
+if has_git 'commit'; then
+  MODE=$(grep -E '^[[:space:]]*mode:' "$CONFIG" 2>/dev/null | head -1 \
+    | sed 's/#.*//' | sed 's/.*mode:[[:space:]]*//' | awk '{print $1}')
+  if [ "${MODE:-human-gated}" != "agent" ]; then
+    block "commits.mode is human-gated — write commit-request.md and set AWAITING_COMMIT instead of committing"
+  fi
+fi
+
+exit 0

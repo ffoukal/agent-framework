@@ -1,0 +1,23 @@
+# .agents/project/config.yml — repo settings. The updater never touches this file.
+# Agents read this in step 0 of the startup protocol. Prose and knowledge go in
+# project.md; flags that agents and scripts must obey without ambiguity go here.
+commits:
+  mode: human-gated        # human-gated | agent  (see AGENTS.md git rules)
+  coauthor_trailers: false # keep false: no AI co-author trailers in commit messages
+models:
+  agents:                  # tier/effort per agent — single source of truth.
+    orchestrator:      { tier: fast,     effort: low }       # coordination is mechanical;
+    planner:           { tier: standard, effort: medium }    # subagents carry their own models
+    reviewer:          { tier: standard, effort: medium }
+    security-reviewer: { tier: standard, effort: medium }
+    pr-splitter:       { tier: reasoning, effort: medium }
+    specifier:         { tier: standard, effort: medium }
+    implementer:       { tier: standard,  effort: medium }
+    debugger:          { tier: standard,  effort: medium }
+    explorer:          { tier: standard,  effort: medium }
+    intake:            { tier: fast,      effort: low }
+    release-manager:   { tier: fast,      effort: low }
+  mapping:                 # tier -> concrete model per CLI; team fills real names
+    reasoning: { claude-code: opus,   opencode: <provider/model>, codex: <model> }
+    standard:  { claude-code: sonnet, opencode: <provider/model>, codex: <model> }
+    fast:      { claude-code: haiku,  opencode: <provider/model>, codex: <model> }

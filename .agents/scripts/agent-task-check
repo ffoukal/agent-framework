@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# agent-task-check — validate the protocol for a task. Final step of shutdown.
+# Exit code != 0 with clear messages if anything fails.
+set -eu
+
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: agent-task-check [TASK-ID]"
+    echo "Validates protocol invariants for the task (config, state frontmatter,"
+    echo "next.md, run-log, commit flow). Exit != 0 on any failure."
+    echo "If TASK-ID is omitted, uses .agents/current-task."
+    exit 0
+    ;;
+esac
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+
+resolve_task() {
+  if [ -n "${1:-}" ]; then
+    printf '%s' "$1"
+  elif [ -f "$AGENTS_DIR/current-task" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  fi
+}
+
+TASK_ID=$(resolve_task "${1:-}")
+if [ -z "$TASK_ID" ]; then
+  echo "FAIL: no task id given and .agents/current-task is empty" >&2
+  exit 2
+fi
+case "$TASK_ID" in
+  .*|*[!A-Za-z0-9._-]*)
+    echo "FAIL: invalid task id '$TASK_ID' (letters/digits/._- only, no slashes)" >&2
+    exit 2 ;;
+esac
+
+TASK_DIR="$AGENTS_DIR/tasks/$TASK_ID"
+CONFIG="$AGENTS_DIR/project/config.yml"
+
+ERRORS=0
+fail() { echo "FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
+warn() { echo "WARN: $1" >&2; }
+
+# --- config.yml ------------------------------------------------------------
+MODE=""
+if [ ! -f "$CONFIG" ]; then
+  fail "$CONFIG does not exist"
+else
+  MODE=$(grep -E '^[[:space:]]*mode:' "$CONFIG" | head -1 \
+    | sed 's/#.*//' | sed 's/.*mode:[[:space:]]*//' | awk '{print $1}')
+  case "$MODE" in
+    human-gated|agent) : ;;
+    "") fail "config.yml has no commits.mode" ;;
+    *) fail "config.yml commits.mode '$MODE' is invalid (want human-gated|agent)" ;;
+  esac
+
+  # models.mapping: the three tiers must be present
+  for _tier in reasoning standard fast; do
+    grep -qE "^[[:space:]]*$_tier:[[:space:]]*\{" "$CONFIG" \
+      || fail "config.yml models.mapping is missing tier '$_tier'"
+  done
+
+  # models.agents: every framework agent must have a valid tier + effort
+  AGENTS_DIR2="$AGENTS_DIR/agents"
+  if [ -d "$AGENTS_DIR2" ]; then
+    for _af in "$AGENTS_DIR2"/*.md; do
+      [ -f "$_af" ] || continue
+      _agent=$(basename "$_af" .md)
+      _line=$(grep -E "^[[:space:]]*$_agent:[[:space:]]*\{" "$CONFIG" | head -1)
+      if [ -z "$_line" ]; then
+        fail "config.yml models.agents has no entry for agent '$_agent'"
+        continue
+      fi
+      _t=$(printf '%s' "$_line" | sed -nE 's/.*tier:[[:space:]]*([A-Za-z]+).*/\1/p')
+      _e=$(printf '%s' "$_line" | sed -nE 's/.*effort:[[:space:]]*([A-Za-z]+).*/\1/p')
+      case "$_t" in reasoning|standard|fast) : ;; *)
+        fail "config.yml models.agents.$_agent has invalid tier '$_t'" ;; esac
+      case "$_e" in high|medium|low) : ;; *)
+        fail "config.yml models.agents.$_agent has invalid effort '$_e'" ;; esac
+    done
+  fi
+fi
+
+# --- task dir --------------------------------------------------------------
+if [ ! -d "$TASK_DIR" ]; then
+  fail "task $TASK_ID not found at $TASK_DIR"
+  echo "$ERRORS error(s)." >&2
+  exit 1
+fi
+
+STATE="$TASK_DIR/state.md"
+NEXT="$TASK_DIR/next.md"
+RUNLOG="$TASK_DIR/run-log.md"
+
+# --- state.md frontmatter --------------------------------------------------
+STATUS="" ; TYPE="" ; PHASE="" ; BASE_COMMIT=""
+if [ ! -f "$STATE" ]; then
+  fail "state.md missing"
+else
+  # extract frontmatter (between the first two --- lines)
+  FM=$(awk 'NR==1 && $0!="---"{exit} /^---[[:space:]]*$/{c++; next} c==1{print} c==2{exit}' "$STATE")
+  if [ -z "$FM" ]; then
+    fail "state.md frontmatter not parseable (missing --- delimiters)"
+  else
+    get() { printf '%s\n' "$FM" | grep -E "^[[:space:]]*$1:" | head -1 \
+      | sed "s/#.*//" | sed "s/.*$1:[[:space:]]*//" | awk '{print $1}'; }
+    STATUS=$(get status)
+    TYPE=$(get type)
+    PHASE=$(get phase)
+    BASE_COMMIT=$(get base_commit)
+
+    case "$STATUS" in
+      READY|IN_PROGRESS|AWAITING_COMMIT|NEEDS_HUMAN|BLOCKED|CHANGES_REQUESTED|APPROVED|DONE) : ;;
+      *) fail "state.md status '$STATUS' is invalid" ;;
+    esac
+    case "$TYPE" in
+      feature|fix|debug|chore|spike) : ;;
+      *) fail "state.md type '$TYPE' is invalid" ;;
+    esac
+    case "$PHASE" in
+      intake|spec|diagnose|explore|plan|implement|test|review|security-review|split|release) : ;;
+      *) fail "state.md phase '$PHASE' is invalid" ;;
+    esac
+
+    # updated timestamp quality (manual creation often zeroes or leaves it)
+    UPDATED=$(get updated)
+    case "$UPDATED" in
+      *T00:00:00Z) warn "state.md 'updated' time is zeroed ($UPDATED) — likely not a real timestamp" ;;
+    esac
+  fi
+fi
+
+# --- unreplaced template placeholders --------------------------------------
+for _pf in task.md state.md next.md; do
+  _file="$TASK_DIR/$_pf"
+  [ -f "$_file" ] || continue
+  if grep -qE 'TASK-000|<TASK_ID>|<ISO-8601( UTC)?>|<sha>' "$_file"; then
+    fail "$_pf still contains an unreplaced template placeholder (use agent-task-new)"
+  fi
+done
+
+# --- next.md ---------------------------------------------------------------
+if [ ! -f "$NEXT" ]; then
+  fail "next.md missing"
+elif [ ! -s "$NEXT" ]; then
+  fail "next.md is empty"
+elif [ -f "$CONFIG" ]; then
+  # the agent named under "## Agent to use" should exist in config.yml models.agents
+  NEXT_AGENT=$(awk '
+    /^## Agent to use/ { f=1; next }
+    f {
+      if ($0 ~ /<!--/) inc=1
+      if (inc) { if ($0 ~ /-->/) inc=0; next }
+      if ($0 ~ /^## /) exit
+      if ($0 ~ /^[[:space:]]*$/) next
+      print; exit
+    }' "$NEXT" | sed -E 's/^[^A-Za-z]*//; s/[^A-Za-z0-9-].*$//')
+  if [ -n "$NEXT_AGENT" ]; then
+    grep -qE "^[[:space:]]*$NEXT_AGENT:[[:space:]]*\{" "$CONFIG" \
+      || warn "next.md 'Agent to use' names '$NEXT_AGENT', not found in config.yml models.agents"
+  fi
+fi
+
+# --- run-log.md ------------------------------------------------------------
+RUNLOG_ENTRIES=0
+if [ ! -f "$RUNLOG" ]; then
+  fail "run-log.md missing"
+else
+  RUNLOG_ENTRIES=$(grep -c '^## ' "$RUNLOG" || true)
+  if [ "$RUNLOG_ENTRIES" -lt 1 ]; then
+    fail "run-log.md has no entries (expected at least one after doing work)"
+  fi
+fi
+
+# --- AWAITING_COMMIT invariants -------------------------------------------
+if [ "$STATUS" = "AWAITING_COMMIT" ]; then
+  if [ "$MODE" = "agent" ]; then
+    fail "status AWAITING_COMMIT is only valid in human-gated mode"
+  fi
+  CR="$TASK_DIR/commit-request.md"
+  if [ ! -f "$CR" ]; then
+    fail "status AWAITING_COMMIT but commit-request.md is missing"
+  else
+    RESOLVED=$(grep -E '^[[:space:]]*resolved:' "$CR" | head -1 \
+      | sed 's/.*resolved:[[:space:]]*//' | awk '{print $1}')
+    if [ "$RESOLVED" != "null" ] && [ -n "$RESOLVED" ]; then
+      fail "commit-request.md is already resolved ($RESOLVED) but status is AWAITING_COMMIT"
+    fi
+  fi
+fi
+
+# --- commit-request archival (resolved ones must move to archive/) ---------
+CR="$TASK_DIR/commit-request.md"
+if [ -f "$CR" ] && [ "$STATUS" != "AWAITING_COMMIT" ]; then
+  CR_RESOLVED=$(grep -E '^[[:space:]]*resolved:' "$CR" | head -1 \
+    | sed 's/.*resolved:[[:space:]]*//' | awk '{print $1}')
+  if [ "$CR_RESOLVED" != "null" ] && [ -n "$CR_RESOLVED" ]; then
+    fail "commit-request.md is resolved ($CR_RESOLVED) but not archived — move it to archive/"
+  fi
+fi
+
+# --- split-plan approval gate ---------------------------------------------
+SP="$TASK_DIR/split-plan.md"
+if [ -f "$SP" ]; then
+  SP_APPROVED=$(grep -E '^[[:space:]]*approved_by_human:' "$SP" | head -1 \
+    | sed 's/.*approved_by_human:[[:space:]]*//' | awk '{print $1}')
+  if [ "$SP_APPROVED" = "false" ] && [ "$STATUS" != "NEEDS_HUMAN" ]; then
+    fail "split-plan.md approved_by_human: false but status is '$STATUS' (must stay NEEDS_HUMAN until approved)"
+  fi
+fi
+
+# --- adapter drift (config.yml edited but adapters not regenerated) --------
+REPO_ROOT=$(dirname "$AGENTS_DIR")
+CLAUDE_AGENTS="$REPO_ROOT/.claude/agents"
+if [ -f "$CONFIG" ] && [ -d "$CLAUDE_AGENTS" ]; then
+  NEWEST_ADAPTER=$(ls -t "$CLAUDE_AGENTS"/*.md 2>/dev/null | head -1)
+  if [ -n "$NEWEST_ADAPTER" ] && [ "$CONFIG" -nt "$NEWEST_ADAPTER" ]; then
+    warn "config.yml is newer than the generated adapters — run .agents/scripts/agent-models-sync to apply the new tiers"
+  fi
+fi
+
+# --- agent-mode commit correspondence -------------------------------------
+if [ "$MODE" = "agent" ] && [ -n "$BASE_COMMIT" ] && [ "$BASE_COMMIT" != "none" ]; then
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    if git cat-file -e "$BASE_COMMIT^{commit}" 2>/dev/null; then
+      for sha in $(git rev-list "$BASE_COMMIT"..HEAD 2>/dev/null); do
+        short=$(git rev-parse --short=7 "$sha")
+        if ! grep -q "$short" "$RUNLOG" 2>/dev/null && ! grep -q "$sha" "$RUNLOG" 2>/dev/null; then
+          fail "commit $short is not recorded in run-log.md (agent mode)"
+        fi
+        if git log -1 --format='%B' "$sha" | grep -iqE 'co-authored-by:|generated with|🤖'; then
+          fail "commit $short has a forbidden AI co-authorship/attribution trailer"
+        fi
+      done
+    else
+      warn "base_commit $BASE_COMMIT not found in git history; skipping commit checks"
+    fi
+  fi
+fi
+
+if [ "$ERRORS" -eq 0 ]; then
+  echo "OK: task $TASK_ID passes protocol checks (mode=$MODE, status=$STATUS)."
+  exit 0
+else
+  echo "$ERRORS error(s) found for task $TASK_ID." >&2
+  exit 1
+fi

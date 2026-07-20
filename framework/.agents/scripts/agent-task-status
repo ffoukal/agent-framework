@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# agent-task-status — print state.md, next.md, and the last 5 run-log entries.
+set -eu
+
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: agent-task-status [TASK-ID]"
+    echo "       agent-task-status --all"
+    echo "Prints state.md, next.md, and the last 5 run-log entries for one task."
+    echo "With --all (or --list): one line per task — id | type | status | phase | updated."
+    echo "If TASK-ID is omitted, uses .agents/current-task."
+    exit 0
+    ;;
+esac
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+
+# --- --all / --list : overview of every task ------------------------------
+case "${1:-}" in
+  --all|--list)
+    CURRENT=""
+    [ -f "$AGENTS_DIR/current-task" ] && CURRENT=$(tr -d '[:space:]' < "$AGENTS_DIR/current-task")
+    printf '%-16s %-8s %-16s %-14s %-20s %s\n' TASK TYPE STATUS PHASE UPDATED ''
+    for _d in "$AGENTS_DIR"/tasks/*/; do
+      [ -d "$_d" ] || continue
+      _id=$(basename "$_d")
+      _s="$_d/state.md"
+      _fld() { grep -E "^[[:space:]]*$1:" "$_s" 2>/dev/null | head -1 \
+        | sed 's/#.*//' | sed "s/.*$1:[[:space:]]*//" | awk '{print $1}'; }
+      _mark=''; [ "$_id" = "$CURRENT" ] && _mark='*'
+      printf '%-16s %-8s %-16s %-14s %-20s %s\n' \
+        "$_id" "$(_fld type)" "$(_fld status)" "$(_fld phase)" "$(_fld updated)" "$_mark"
+    done
+    echo "(* = current task)"
+    exit 0
+    ;;
+esac
+
+resolve_task() {
+  if [ -n "${1:-}" ]; then
+    printf '%s' "$1"
+  elif [ -f "$AGENTS_DIR/current-task" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  fi
+}
+
+TASK_ID=$(resolve_task "${1:-}")
+if [ -z "$TASK_ID" ]; then
+  echo "error: no task id given and .agents/current-task is empty" >&2
+  exit 2
+fi
+case "$TASK_ID" in
+  .*|*[!A-Za-z0-9._-]*)
+    echo "error: invalid task id '$TASK_ID'" >&2; exit 2 ;;
+esac
+
+TASK_DIR="$AGENTS_DIR/tasks/$TASK_ID"
+if [ ! -d "$TASK_DIR" ]; then
+  echo "error: task $TASK_ID not found at $TASK_DIR" >&2
+  exit 1
+fi
+
+sep() { printf '\n========== %s ==========\n\n' "$1"; }
+
+sep "state.md ($TASK_ID)"
+cat "$TASK_DIR/state.md" 2>/dev/null || echo "(missing state.md)"
+
+sep "next.md"
+cat "$TASK_DIR/next.md" 2>/dev/null || echo "(missing next.md)"
+
+sep "run-log.md (last 5 entries)"
+if [ -f "$TASK_DIR/run-log.md" ]; then
+  awk '
+    /^## / { n++ }
+    { block[n] = block[n] $0 "\n" }
+    END {
+      start = n - 4
+      if (start < 1) start = 1
+      for (i = start; i <= n; i++) printf "%s", block[i]
+    }
+  ' "$TASK_DIR/run-log.md"
+else
+  echo "(missing run-log.md)"
+fi

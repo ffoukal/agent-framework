@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# agent-task-next — print next.md for a task.
+set -eu
+
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: agent-task-next [TASK-ID]"
+    echo "Prints next.md. If TASK-ID is omitted, uses .agents/current-task."
+    exit 0
+    ;;
+esac
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+
+resolve_task() {
+  if [ -n "${1:-}" ]; then
+    printf '%s' "$1"
+  elif [ -f "$AGENTS_DIR/current-task" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  fi
+}
+
+TASK_ID=$(resolve_task "${1:-}")
+if [ -z "$TASK_ID" ]; then
+  echo "error: no task id given and .agents/current-task is empty" >&2
+  exit 2
+fi
+case "$TASK_ID" in
+  .*|*[!A-Za-z0-9._-]*)
+    echo "error: invalid task id '$TASK_ID'" >&2; exit 2 ;;
+esac
+
+NEXT="$AGENTS_DIR/tasks/$TASK_ID/next.md"
+if [ ! -f "$NEXT" ]; then
+  echo "error: $NEXT not found" >&2
+  exit 1
+fi
+
+cat "$NEXT"
