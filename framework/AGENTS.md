@@ -96,6 +96,14 @@ do not edit them — edit `config.yml` (or `.agents/agents/`) and run
   executing an approved split-plan (see PR splitting).
 - Commit boundaries are defined by the plan (Commit/PR boundaries) or phase ends —
   never micro-commits. The commit mode changes WHO commits, never WHEN.
+- **Bookkeeping-only exception:** if a phase's entire diff is confined to
+  `.agents/tasks/<task-id>/` (state.md, run-log.md, review.md, next.md, archive/ —
+  no deliverable files touched), it is NOT its own commit boundary. The agent
+  updates status directly to the phase's terminal state and leaves the diff
+  uncommitted for the human to fold into a future commit at their convenience — no
+  `commit-request.md`, no `AWAITING_COMMIT`. This applies in both commit modes.
+  It does NOT apply when the phase's artifact IS the deliverable (e.g. specifier's
+  `spec.md`, planner's `plan.md`) — those still gate normally.
 
 **If `commits.mode` is `human-gated` (default):**
 - Agents NEVER run `git commit`. To get changes committed, write `commit-request.md`
@@ -259,4 +267,5 @@ is the plan boundary or phase end (no micro-commits) and the working tree must b
 resyncs (startup step 5). `agent`: the agent commits at the boundary and records
 message + SHA in `run-log.md`. Reviewer and pr-splitter operate on
 `git diff <base_commit>..HEAD` the same in both modes, so a repo can switch modes without
-breaking in-flight tasks.
+breaking in-flight tasks. See the bookkeeping-only exception in **Git rules** above —
+a review verdict with no deliverable changes does not need its own commit round.
