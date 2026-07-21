@@ -2,12 +2,12 @@
 task: TASK-001
 type: chore              # feature | fix | debug | chore | spike
 pipeline: [implement, review]
-phase: implement
-status: AWAITING_COMMIT  # READY | IN_PROGRESS | AWAITING_COMMIT | NEEDS_HUMAN |
+phase: review
+status: DONE              # READY | IN_PROGRESS | AWAITING_COMMIT | NEEDS_HUMAN |
                          # BLOCKED | CHANGES_REQUESTED | APPROVED | DONE
-owner: implementer
+owner: reviewer
 base_commit: ddc9693bccc3096632eb52992ce5c6e810222bfc
-updated: 2026-07-20T02:50:00Z
+updated: 2026-07-21T14:20:00Z
 stop_at: null            # optional: orchestrator halts before advancing past this phase
 ---
 
@@ -16,33 +16,32 @@ stop_at: null            # optional: orchestrator halts before advancing past th
 ## Goal
 Complete .agents/project/ (project.md and memory/) with accurate repo-specific content, replacing the template TODOs.
 ## Last completed step
-Implementer: filled project.md and all memory/*.md with repo-specific content,
-seeded decisions.md, verified with bash -n + ./install.sh . dogfood run, wrote
-commit-request.md, set status AWAITING_COMMIT.
+Reviewer: confirmed human commit 35d0a60, archived resolved commit-request.md,
+reviewed `git diff ddc9693..35d0a60` against task.md, spot-checked factual claims
+(dual-copy diff, directory listing, decisions.md vs config.yml, agent-git-guard
+existence) - all confirmed. Verdict APPROVED, no findings. Task closed as DONE;
+review bookkeeping (review.md, state/run-log/next updates, archived
+commit-request.md) is left uncommitted for the human to fold into their next
+commit whenever convenient - not gated behind a separate commit-request round,
+since it carries no risk and blocks nothing.
 ## Active files
-.agents/project/project.md, .agents/project/memory/*.md
+None - task closed.
 ## Blockers
-None. Awaiting human commit (commits.mode: human-gated) - see commit-request.md.
+None.
 ## Human decisions
 See task.md (chore classification confirmed; git initialized at ddc9693).
 
 ## Handoff
 ### Summary
-All .agents/project/ TODOs replaced with accurate, repo-specific content. Verified
-via bash -n over all shell scripts and an idempotent ./install.sh . dogfood run
-(no diffs outside .agents/project/). commit-request.md written; ready for the human
-to commit before the reviewer runs.
+TASK-001 complete and APPROVED. Human committed the implementer's work as 35d0a60.
+Review confirmed all .agents/project/ TODOs replaced with accurate content, scope
+stayed within .agents/project/ + task bookkeeping, and spot-checked facts hold up.
 ### Completed
-project.md rewritten (what/stack/navigation/build-test/rules/CI/gotchas); all 6
-memory/*.md files filled; decisions.md seeded with the 3 decisions from task.md;
-implementation-log.md written with Test results section; commit-request.md written.
+project.md and all 6 memory/*.md files filled; decisions.md seeded; review.md
+written with APPROVED verdict; commit-request.md archived.
 ### Important constraints
-English only; factual content only; stay inside .agents/project/; commits.mode is
-human-gated - implementer did NOT run git commit. Next agent (startup step 5) must
-check for a new commit before proceeding; if none yet, tell the human a commit is
-pending.
+N/A - task done.
 ### Files to inspect first
-.agents/tasks/TASK-001/commit-request.md, .agents/tasks/TASK-001/implementation-log.md,
-the files listed in commit-request.md's "Files to include".
+.agents/tasks/TASK-001/review.md for the full verdict and spot-check evidence.
 ### Open questions
 None.
