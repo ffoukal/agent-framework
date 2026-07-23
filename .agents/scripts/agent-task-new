@@ -6,12 +6,13 @@ usage() {
   cat <<'EOF'
 Usage: agent-task-new TASK-ID "Goal"
 
-Creates .agents/tasks/TASK-ID/ with task.md, state.md, next.md, run-log.md from
-templates, registers base_commit = current HEAD, and sets current-task.
+Creates .agents/tasks/TASK-ID/ with task.md and progress.md from templates,
+registers base_commit = current HEAD, and sets current-task.
 Errors (without overwriting) if the task already exists.
 
 Low-level primitive: the documented entry point for new work is the intake agent
-("Start a new task using the persistent agent system.").
+("Start a new task using the persistent agent system."). The intake prunes the
+task.md sections that do not apply to the task type after creation.
 EOF
 }
 
@@ -48,12 +49,12 @@ fi
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 BASE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "none")
 
-mkdir -p "$TASK_DIR/archive"
-for f in task.md state.md next.md run-log.md; do
+mkdir -p "$TASK_DIR"
+for f in task.md progress.md; do
   cp "$TEMPLATES/$f" "$TASK_DIR/$f"
 done
 
-for f in task.md state.md next.md run-log.md; do
+for f in task.md progress.md; do
   file="$TASK_DIR/$f"
   sed \
     -e "s/TASK-000/$TASK_ID/g" \
@@ -64,13 +65,11 @@ for f in task.md state.md next.md run-log.md; do
     "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 done
 
-for f in task.md state.md; do
-  file="$TASK_DIR/$f"
-  awk -v goal="$GOAL" '
-    { print }
-    !done && $0 == "## Goal" { print goal; done=1 }
-  ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-done
+file="$TASK_DIR/task.md"
+awk -v goal="$GOAL" '
+  { print }
+  !done && $0 == "## Goal" { print goal; done=1 }
+' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 
 printf '%s\n' "$TASK_ID" > "$AGENTS_DIR/current-task"
 
@@ -78,4 +77,4 @@ echo "Created task $TASK_ID"
 echo "  dir:         $TASK_DIR"
 echo "  base_commit: $BASE_COMMIT"
 echo "  current-task set to $TASK_ID"
-echo "Next: an agent should read state.md/next.md and follow the protocol in AGENTS.md."
+echo "Next: prune task.md to the task type, then follow the protocol in AGENTS.md."

@@ -52,7 +52,7 @@ if has_git 'commit'; then
   MODE=$(grep -E '^[[:space:]]*mode:' "$CONFIG" 2>/dev/null | head -1 \
     | sed 's/#.*//' | sed 's/.*mode:[[:space:]]*//' | awk '{print $1}')
   if [ "${MODE:-human-gated}" != "agent" ]; then
-    block "commits.mode is human-gated — write commit-request.md and set AWAITING_COMMIT instead of committing"
+    block "commits.mode is human-gated — fill the '## Commit request' section of progress.md and set AWAITING_COMMIT instead of committing"
   fi
 fi
 

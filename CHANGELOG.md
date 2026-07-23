@@ -5,6 +5,33 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Two-file task model + durable docs (breaking)
+- Each task now keeps exactly **two working files**: `task.md` (the living logical
+  document — brief, evolution & human decisions, Diagnosis, Findings, Implementation
+  notes, Review, Security review, Release notes as sections) and `progress.md` (the
+  machine file — state frontmatter, `## Next`, transient `## Commit request`, rolling
+  `## Recent log` of ~5 entries). Removed as files: `state.md`, `next.md`,
+  `run-log.md`, `implementation-log.md`, `commit-request.md`, `review.md`,
+  `diagnosis.md`, `findings.md`, `security-review.md`, `release-notes.md`, `archive/`.
+- **`.agents/tasks/` is now gitignored** (install/update add the entry and warn about
+  previously tracked files): task state is local working state; a task is normally
+  started and finished by the same dev. Cross-machine handoff via git no longer
+  carries open-task state — the durable outputs do.
+- **Durable docs**, all named `YYYY-MM-DD-<task-name>.md`: specs in `docs/specs/`,
+  plans now written directly to `docs/plans/` (git-versioned, survive the task), and
+  a per-task **resume** in `docs/tasks/` written by the terminal agent at close
+  (reviewer for fix/chore on APPROVED; release-manager for features). The resume
+  distills task.md: Problem, Solution, pending review items, unresolved follow-ups,
+  notes; frontmatter `tags`, `touched` (≤5, "where would you look first", never
+  mechanical ripples), `related`, `outcome`, spec/plan links.
+- **Recall:** `docs/tasks/INDEX.md` (seeded by install/update) holds one line per
+  closed task; the intake reads the INDEX (never the resumes wholesale), matches the
+  new task by tags/paths, and links only the matching resumes in the new task.md.
+- Scripts updated: `agent-task-new` creates the two files; `agent-task-next` prints
+  `## Next`; `agent-task-status` prints progress + the task brief; `agent-task-check`
+  validates the new invariants (Commit request section vs status, Recent log
+  presence/trim, DONE ⇒ resume + INDEX line, tasks-gitignored warning).
+
 ### Spec-driven flow
 - Features now start with a **`spec` phase**: the new **`specifier`** agent (renamed from
   `brainstormer`) runs discovery interactively and writes an approved **`spec.md`**

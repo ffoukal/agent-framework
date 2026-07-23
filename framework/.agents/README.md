@@ -1,9 +1,21 @@
 # Persistent agent system (`.agents/`)
 
 Este directorio es un **sistema de agentes persistentes multi-CLI**. La idea central:
-**el repo es la memoria**. El estado de cada tarea vive en archivos Markdown
-versionables, no en la memoria interna de una CLI. Cualquier CLI (Claude Code, Codex,
-OpenCode) puede abrir el repo, leer el estado y continuar donde otra dejó.
+**el repo es la memoria**. El estado de cada tarea vive en archivos Markdown en disco,
+no en la memoria interna de una CLI. Cualquier CLI (Claude Code, Codex, OpenCode)
+puede abrir el repo, leer el estado y continuar donde otra dejó.
+
+Cada tarea usa **dos archivos de trabajo** en `.agents/tasks/<TASK-ID>/`:
+
+- `task.md` — el **documento lógico vivo**: brief, evolución, decisiones, diagnosis,
+  findings, review, release notes. Lo que un humano releería.
+- `progress.md` — el **archivo de máquina**: frontmatter de la máquina de estados,
+  instrucción para el próximo agente, coordinación de commits, log corto rodante.
+
+`.agents/tasks/` está **gitignoreado** (estado de trabajo local). Lo durable vive
+versionado en `docs/`: `docs/specs/` (specs), `docs/plans/` (planes) y `docs/tasks/`
+(un resumen por tarea cerrada + `INDEX.md`), todos con el nombre
+`YYYY-MM-DD-<task-name>.md`.
 
 ## Qué hay acá
 
@@ -18,8 +30,8 @@ OpenCode) puede abrir el repo, leer el estado y continuar donde otra dejó.
     project.md       # guía del repo para agentes
     config.yml       # settings parseables (modo de commit, etc.)
     memory/          # arquitectura, dominio, code-map, testing, convenciones, decisiones
-  tasks/             # datos de trabajo — el updater NUNCA los toca
-    <TASK-ID>/       # una carpeta por tarea
+  tasks/             # estado de trabajo LOCAL (gitignoreado) — el updater NUNCA lo toca
+    <TASK-ID>/       # una carpeta por tarea: task.md + progress.md (+ split-plan.md)
   current-task       # id de la tarea activa (o vacío)
 ```
 
@@ -36,7 +48,7 @@ Start a new task using the persistent agent system.
 
 El intake entrevista, clasifica el tipo (feature / fix / debug / chore / spike),
 propone un resumen, y recién con tu confirmación crea la tarea, setea `current-task`
-y deja `next.md` listo para el primer agente del pipeline.
+y deja el `## Next` de `progress.md` listo para el primer agente del pipeline.
 
 (La primitiva de bajo nivel es `.agents/scripts/agent-task-new`, pero la puerta de
 entrada documentada es el intake.)
@@ -49,11 +61,11 @@ Abrí cualquier CLI en el repo y decí:
 Continue the current task using the persistent agent system.
 ```
 
-El agente lee `current-task`, `state.md`, `next.md` y los artifacts de fase, y sigue.
-Podés ser explícito con el rol:
+El agente lee `current-task`, `progress.md` (estado + próximo paso) y `task.md`, y
+sigue. Podés ser explícito con el rol:
 
 ```text
-Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/next.md` and follow the persistent agent protocol.
+Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/progress.md` and follow the persistent agent protocol.
 Continue the current task as reviewer. Read the persistent task state and review the diff against base_commit.
 ```
 
@@ -140,7 +152,7 @@ En OpenCode/Codex no existe un hook equivalente: ahí rigen las mismas reglas po
 
 No hay nada especial que hacer: todas leen los mismos archivos. Cerrá una, abrí la
 otra en el mismo repo, y usá el prompt "Continue the current task...". El handoff está
-en `state.md` (sección Handoff) y la instrucción concreta en `next.md`.
+en `progress.md` (frontmatter + sección `## Next`).
 
 ## Skills del equipo (`.agents/skills/`)
 
@@ -164,7 +176,7 @@ fuente de verdad**. `models.mapping` traduce cada tier abstracto
 (`reasoning` | `standard` | `fast`) al modelo concreto por CLI (`claude-code`,
 `opencode`, `codex`). Ajustar tier/effort por repo = editar `models.agents` acá.
 
-En el **flujo manual**, `next.md` incluye el modelo/effort resuelto del próximo agente
+En el **flujo manual**, el `## Next` de `progress.md` incluye el modelo/effort resuelto del próximo agente
 (p. ej. `reviewer — model: opus, effort: high`) y vos elegís el modelo al abrir la sesión.
 Para la **orquestación**, el install genera los adaptadores de subagente por CLI
 (`.claude/agents/`, `.opencode/agent/`) con ese `model:` por rol, e imprime la receta de
@@ -174,23 +186,38 @@ rutee el modelo al subagente despachado.
 ## Qué archivos mirar primero
 
 1. `.agents/current-task` — qué tarea está activa.
-2. `.agents/tasks/<id>/state.md` — estado descriptivo: qué pasó, en qué fase estamos,
-   y el **Handoff** para la próxima CLI.
-3. `.agents/tasks/<id>/next.md` — estado prescriptivo: qué hacer ahora, qué agente
-   usar, qué leer, cuándo parar.
+2. `.agents/tasks/<id>/progress.md` — la máquina de estados: status, fase, y la
+   sección `## Next` (qué hacer ahora, qué agente usar, qué leer, cuándo parar).
+3. `.agents/tasks/<id>/task.md` — el documento lógico: brief, evolución, decisiones,
+   y las secciones de fase (Diagnosis, Findings, Review, ...).
 
-`state.md` = **qué pasó** (descriptivo). `next.md` = **qué hacer** (prescriptivo).
-No se duplican: no existe `handoff.md` separado; el handoff vive dentro de `state.md`.
+`task.md` = **la historia lógica** (lo que un humano releería). `progress.md` = **la
+coordinación** (lo que la máquina de estados necesita). No se duplican.
+
+## Cierre de tarea, resúmenes y recall
+
+Al cerrar una tarea (`APPROVED` de fix/chore, release de una feature), el agente
+terminal destila `task.md` en `docs/tasks/YYYY-MM-DD-<task-name>.md` (problema,
+solución, items de review pendientes, follow-ups, notas; frontmatter con `tags`,
+`touched` ≤5, `related`, `outcome` y links a spec/plan) y agrega una línea a
+`docs/tasks/INDEX.md`. La carpeta de la tarea queda local (gitignoreada) hasta que
+quieras borrarla.
+
+El **intake** de cada tarea nueva lee `INDEX.md` (una línea por tarea, nunca los
+resúmenes enteros), detecta overlap por tags/paths y linkea solo los resúmenes que
+matchean en el `task.md` nuevo — así el conocimiento pasado llega al pipeline sin
+lecturas exploratorias.
 
 ## Flujo de commits
 
 El comportamiento depende de `commits.mode` en `.agents/project/config.yml`:
 
 - **`human-gated` (default):** el agente nunca commitea. Cuando cierra una unidad
-  commiteable escribe `commit-request.md`, pone `status: AWAITING_COMMIT` y para. Vos
-  revisás y commiteás. El próximo agente detecta el commit nuevo y resincroniza solo.
+  commiteable llena la sección `## Commit request` de `progress.md`, pone
+  `status: AWAITING_COMMIT` y para. Vos revisás y commiteás. El próximo agente detecta
+  el commit nuevo y resincroniza solo.
 - **`agent`:** el agente commitea en los boundaries del plan y registra mensaje + SHA
-  en `run-log.md`. No se usa `commit-request.md`.
+  en el `## Recent log` de `progress.md`. La sección de commit request no se usa.
 
 En **ambos modos el push es siempre humano**, y los commits **nunca** llevan co-autoría
 de agentes. Para cambiar de modo, editá `commits.mode` en `config.yml`; el sistema es
@@ -199,7 +226,8 @@ agnóstico y no rompe tareas en curso.
 ## Por qué los commits no llevan co-autoría de agentes
 
 La autoría pertenece al humano que opera la sesión. La trazabilidad de qué agente y
-qué CLI hizo qué (con SHA) vive en `run-log.md`, no en el historial de git. El install
+qué CLI hizo qué (con SHA) vive en el `## Recent log` de `progress.md` mientras la
+tarea está abierta, no en el historial de git. El install
 además setea `"includeCoAuthoredBy": false` en `.claude/settings.json` para
 neutralizar mecánicamente el trailer que Claude Code agrega por defecto.
 
@@ -218,16 +246,18 @@ genera la receta de rebase para el siguiente.
 1. **install** — corrés `install.sh` desde el repo destino; se copia el framework y se
    pre-llenan borradores con los detectores.
 2. **intake** — "Start a new task..."; el intake entrevista, clasifica y crea la tarea.
-3. **plan** — el `planner` escribe `plan.md` con Commit/PR boundaries y para en
-   `NEEDS_HUMAN`.
+3. **plan** — el `planner` escribe el plan en `docs/plans/` con Commit/PR boundaries
+   y para en `NEEDS_HUMAN`.
 4. **gate** — vos aprobás el plan.
-5. **implement** — el `implementer` implementa por capas y emite `commit-request.md`
-   (o commitea, según modo) en cada boundary.
-6. **review** — el `reviewer` revisa el diff contra el plan y escribe `review.md` con
-   verdict.
+5. **implement** — el `implementer` implementa por capas y emite un commit request en
+   `progress.md` (o commitea, según modo) en cada boundary.
+6. **review** — el `reviewer` revisa el diff contra el plan y escribe la sección
+   `## Review` de `task.md` con verdict.
 7. **split** — si el diff es grande, el `pr-splitter` propone y (aprobado) ejecuta el
    split en capas; vos pusheás y abrís PRs.
-8. **update** — cuando sale una versión nueva del framework, corrés `update.sh`; se
+8. **close** — el agente terminal escribe el resumen durable en `docs/tasks/` y su
+   línea en `INDEX.md`.
+9. **update** — cuando sale una versión nueva del framework, corrés `update.sh`; se
    actualiza todo menos `project/`, `tasks/` y `current-task`.
 
 ## Prompts universales
@@ -235,6 +265,6 @@ genera la receta de rebase para el siguiente.
 ```text
 Start a new task using the persistent agent system.
 Continue the current task using the persistent agent system.
-Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/next.md` and follow the persistent agent protocol.
+Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/progress.md` and follow the persistent agent protocol.
 Continue the current task as reviewer. Read the persistent task state and review the diff against base_commit.
 ```

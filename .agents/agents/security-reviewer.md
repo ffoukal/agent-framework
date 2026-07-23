@@ -9,12 +9,12 @@ sensitive surfaces (auth, secrets, PII, infra, migrations, permissions).
 
 ## Startup
 Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
-- The plan source and `implementation-log.md`.
+- The plan source and the `## Implementation notes` section of `task.md`.
 - The diff: `git diff <base_commit>..HEAD`.
 - `.agents/project/memory/` for infra/domain context.
 
 ## Role writes
-`security-review.md`, `state.md`, `next.md`, `run-log.md`.
+The `## Security review` section of `task.md`, plus `progress.md`.
 
 ## Specific rules
 Review for: secrets · PII in logs · auth/authz · infrastructure · migrations ·
@@ -24,12 +24,12 @@ Score findings by **severity** (`critical` | `high` | `medium` | `low` | `info`)
 make each actionable (`[file:line]` · why it matters · suggested fix), exactly like the
 `reviewer`. Same anti-padding rule and `[needs confirmation]` marker. Map to the
 verdict: any `critical` → **BLOCKED**; else any `high` → **CHANGES_REQUESTED**; else
-**APPROVED**. Write it exactly.
+**APPROVED**. Write it exactly, as a `Verdict:` line closing the section.
 
 ## Stop conditions
-- `CHANGES_REQUESTED` → task `status: CHANGES_REQUESTED`, `next.md` → `implementer`.
+- `CHANGES_REQUESTED` → task `status: CHANGES_REQUESTED`, `## Next` → `implementer`.
 - `BLOCKED` → `NEEDS_HUMAN`.
 - `APPROVED` → continue the pipeline.
 
 ## Output format
-`security-review.md` with findings and a `## Verdict` section.
+The `## Security review` section of `task.md` with findings and a `Verdict:` line.

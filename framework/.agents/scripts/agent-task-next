@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# agent-task-next — print next.md for a task.
+# agent-task-next — print the "## Next" section of progress.md for a task.
 set -eu
 
 case "${1:-}" in
   -h|--help)
     echo "Usage: agent-task-next [TASK-ID]"
-    echo "Prints next.md. If TASK-ID is omitted, uses .agents/current-task."
+    echo "Prints the '## Next' section of progress.md."
+    echo "If TASK-ID is omitted, uses .agents/current-task."
     exit 0
     ;;
 esac
@@ -31,10 +32,10 @@ case "$TASK_ID" in
     echo "error: invalid task id '$TASK_ID'" >&2; exit 2 ;;
 esac
 
-NEXT="$AGENTS_DIR/tasks/$TASK_ID/next.md"
-if [ ! -f "$NEXT" ]; then
-  echo "error: $NEXT not found" >&2
+PROGRESS="$AGENTS_DIR/tasks/$TASK_ID/progress.md"
+if [ ! -f "$PROGRESS" ]; then
+  echo "error: $PROGRESS not found" >&2
   exit 1
 fi
 
-cat "$NEXT"
+awk '/^## Next[[:space:]]*$/{f=1} f && /^## / && !/^## Next[[:space:]]*$/{exit} f{print}' "$PROGRESS"

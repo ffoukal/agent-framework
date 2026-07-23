@@ -9,15 +9,14 @@ When a `feature` is `APPROVED` and the diff exceeds ~15 files.
 
 ## Startup
 Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
-- `plan.md` (Commit/PR boundaries).
+- The plan the `task.md` frontmatter links (Commit/PR boundaries).
 - `.agents/project/project.md` — read the **base branch** and **merge strategy** from
   the "CI & branching" section (the merge strategy determines the rebase recipe).
 - The diff: `git diff <base_commit>..HEAD`, `git log <base_commit>..HEAD --oneline`.
 - Existing `split-plan.md` if resuming a stack.
 
 ## Role writes
-`split-plan.md`, `split-execute.sh` (post-approval), `state.md`, `next.md`,
-`run-log.md`.
+`split-plan.md`, `split-execute.sh` (post-approval), `progress.md`.
 
 ## Specific rules
 **Analysis phase:** read the diff, build the dependency graph between changed files,

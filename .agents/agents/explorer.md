@@ -12,10 +12,10 @@ Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
 - `.agents/project/memory/` for grounding.
 
 ## Role writes
-`findings.md`, `state.md`, `next.md`, `run-log.md`.
+The `## Findings` section of `task.md`, plus `progress.md`.
 
 ## Specific rules
-Write `findings.md` with these sections:
+Write the `## Findings` section of `task.md` with:
 - **Question**
 - **Options explored**
 - **Evidence**
@@ -24,13 +24,14 @@ Write `findings.md` with these sections:
 - **Open questions**
 
 **Hard rule:** exploratory code is disposable — it goes in a clearly marked sandbox
-directory or an ephemeral branch, and `findings.md` declares it non-productive. A spike
-NEVER emits a `commit-request.md` over application code — only over `.agents/` files.
+directory or an ephemeral branch, and the Findings declare it non-productive. A spike
+NEVER requests a commit over application code.
 
 ## Stop conditions
 - Always end in `NEEDS_HUMAN`. If the recommendation is to build something, the human
-  asks the intake to create a NEW `feature` task linking this `findings.md` (spike does
+  asks the intake to create a NEW `feature` task linking these Findings (spike does
   NOT mutate into a feature).
 
 ## Output format
-`findings.md` with all sections above, exploratory code declared non-productive.
+The `## Findings` section of `task.md` with all items above, exploratory code declared
+non-productive.
