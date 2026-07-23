@@ -276,6 +276,27 @@ fi
 echo ""
 "$DEST/.agents/scripts/agent-models-sync"
 
+# --- 7.15 gitignore .agents/tasks + seed docs/tasks/INDEX.md ---------------
+# .agents/tasks/ is local working state (a task is started and finished by the same
+# dev); the durable outputs live in docs/specs|plans|tasks.
+GITIGNORE="$DEST/.gitignore"
+if [ ! -f "$GITIGNORE" ] || ! grep -qE '^\.agents/tasks/?$' "$GITIGNORE"; then
+  { [ -f "$GITIGNORE" ] && [ -s "$GITIGNORE" ] && [ -n "$(tail -c 1 "$GITIGNORE")" ] && echo ""; \
+    echo ".agents/tasks/"; } >> "$GITIGNORE"
+  echo "Added .agents/tasks/ to .gitignore (local working state)."
+fi
+if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
+  mkdir -p "$DEST/docs/tasks"
+  cat > "$DEST/docs/tasks/INDEX.md" <<'EOF'
+# Task index
+
+<!-- One line per closed task, appended by the terminal agent at close. Format:
+     - YYYY-MM-DD TASK-ID type [tag, tag] touched/paths — one-line summary
+     The intake reads THIS file (never the whole resumes) to recall related work. -->
+EOF
+  echo "Seeded docs/tasks/INDEX.md."
+fi
+
 # --- 7.2 .claude/skills symlink so Claude Code discovers repo skills --------
 # Codex and OpenCode scan .agents/skills/ natively; Claude Code needs this link.
 CLAUDE_SKILLS="$DEST/.claude/skills"
@@ -302,6 +323,7 @@ Files touched:
   .agents/project/ $([ "$NEW_PROJECT" -eq 1 ] && echo '(new, with detector drafts)' || echo '(preserved)')
   .claude/settings.json, .claude/skills -> ../.agents/skills
   .claude/agents/, .opencode/agent/ (generated subagent adapters for orchestration)
+  .gitignore (.agents/tasks/ entry), docs/tasks/INDEX.md (task resume index)
 EOF
 
 if [ "$MIGRATED" -eq 1 ]; then

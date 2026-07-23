@@ -1,8 +1,9 @@
 # Spec
 
-<!-- Durable spec for this feature. Lives at docs/specs/<task-id>-<slug>.md and is linked
-     from the task. Approved by the human before the plan is built (gate 1). English only.
-     Superseded drafts are not kept — this file is the single definition of the WHAT. -->
+<!-- Durable spec for this feature. Lives at docs/specs/YYYY-MM-DD-<task-name>.md and is
+     linked from the task.md frontmatter (spec:). Approved by the human before the plan is
+     built (gate 1). English only. Superseded drafts are not kept — this file is the
+     single definition of the WHAT. -->
 
 ## Problem / Context
 What is the situation today and why does it need to change?

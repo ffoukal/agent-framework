@@ -17,13 +17,13 @@ in-template guidance that should not appear in the rendered/filled version.
   (`coauthor_trailers: false` in `config.yml`, enforced by the `agent-git-guard`
   hook and by `AGENTS.md` prose on CLIs without hooks).
 - `commits.mode: human-gated` in this repo's own `config.yml`: agents never run
-  `git commit`; they write `commit-request.md` and set `status: AWAITING_COMMIT` for
-  the human to commit.
+  `git commit`; they fill the `## Commit request` section of `progress.md` and set
+  `status: AWAITING_COMMIT` for the human to commit.
 
 ## Error handling & logging
 Shell scripts should fail fast and surface actionable errors (no silent swallowing).
-There is no application logging — the only "log" is `run-log.md` per task, which is
-append-only prose written by agents, not a runtime log.
+There is no application logging — the only "log" is the rolling `## Recent log` in
+each task's `progress.md`, prose written by agents, not a runtime log.
 
 ## Patterns to follow / avoid
 - Follow: keep `framework/` and the per-repo `.agents/project/` strictly separate;

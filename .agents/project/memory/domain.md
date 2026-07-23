@@ -23,11 +23,11 @@
   (`.claude/agents/*.md`, `.opencode/agent/*.md`, etc.) carrying the resolved model.
 
 ## Core entities
-- **Task** (`.agents/tasks/<id>/`): the unit of work. Composed of `task.md` (the
-  plan, immutable-ish), `state.md` (current phase/status, overwritten), `next.md`
-  (prescriptive instruction for the next agent), `run-log.md` (append-only history),
-  plus phase artifacts (`plan.md`, `diagnosis.md`, `review.md`, `commit-request.md`,
-  ...).
+- **Task** (`.agents/tasks/<id>/`, gitignored): the unit of work. Composed of
+  `task.md` (living logical document: brief + Diagnosis/Findings/Implementation
+  notes/Review/Release notes sections) and `progress.md` (machine file: state
+  frontmatter, `## Next`, transient `## Commit request`, rolling `## Recent log`).
+  Durable outputs live in `docs/specs|plans|tasks/` as `YYYY-MM-DD-<task-name>.md`.
 - **Project layer** (`.agents/project/`): per-target-repo knowledge — `project.md` +
   `memory/*.md` + `config.yml`. This is what TASK-001 fills in for this repo.
 
@@ -46,6 +46,6 @@
 - A repo whose stack has no detector (like this one: shell + Markdown) gets a fully
   TODO-templated `.agents/project/`; someone must fill it by hand — that is exactly
   what TASK-001 does, and it is the installer's own "suggested first task".
-- If `state.md`'s `updated` timestamp is fresh (<15 min) and `owner` isn't the
+- If `progress.md`'s `updated` timestamp is fresh (<15 min) and `owner` isn't the
   current agent, another CLI may be concurrently active — the startup protocol
   requires warning the human rather than proceeding silently.

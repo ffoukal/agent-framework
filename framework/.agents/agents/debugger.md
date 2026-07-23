@@ -14,10 +14,10 @@ Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
   infra/IDP notes documented there.
 
 ## Role writes
-`diagnosis.md`, `state.md`, `next.md`, `run-log.md`.
+The `## Diagnosis` section of `task.md`, plus `progress.md`.
 
 ## Specific rules
-Write `diagnosis.md` with these sections:
+Write the `## Diagnosis` section of `task.md` with:
 - **Symptom**
 - **Reproduction**
 - **Root cause**
@@ -32,10 +32,10 @@ Investigate using the repo and documented project context. Do not implement fixe
 - Task type `debug`: always end in `NEEDS_HUMAN` — the human decides what to do with
   the diagnosis (possibly a `debug → fix` escalation).
 - Task type `fix`: if the cause and the change are bounded, hand off directly to the
-  `implementer` via `next.md`. This is the **normal `fix` pipeline** (diagnose → implement
+  `implementer` via `## Next`. This is the **normal `fix` pipeline** (diagnose → implement
   → review), NOT a `debug → fix` escalation — the task is already type `fix`, so no type
   mutation and no human-confirmation gate apply here. If the fix requires design, propose
   a `fix → feature` escalation and stop for human confirmation.
 
 ## Output format
-`diagnosis.md` with all sections above.
+The `## Diagnosis` section of `task.md` with all items above.

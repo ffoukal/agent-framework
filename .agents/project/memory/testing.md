@@ -9,9 +9,9 @@ No automated test suite exists. Verification is manual/scripted:
   every shell script (adjust the glob to the scripts actually touched).
 - `./install.sh .` from repo root — end-to-end dogfood run; installing onto this
   repo itself should complete without errors and leave a coherent `.agents/` tree.
-- `.agents/scripts/agent-task-check <task-id>` — validates a task's artifacts
-  (unreplaced placeholders, stale timestamps, model routing, commit-request
-  archival) after any task-file edit.
+- `.agents/scripts/agent-task-check <task-id>` — validates a task's files
+  (unreplaced placeholders, stale timestamps, model routing, Commit request vs
+  status, Recent log, DONE ⇒ resume + INDEX line) after any task-file edit.
 
 ## Test layout
 No `tests/` directory. There is no unit/integration test framework in this repo.

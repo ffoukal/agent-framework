@@ -2,20 +2,23 @@
 
 ## Role
 Review the diff against the plan (or diagnosis/task, by type) and emit a verdict.
+For `fix`/`chore`, also **close the task** on `APPROVED` (write the durable resume).
 
 ## When to use
 `review` phase of `feature`, `fix`, and `chore` pipelines.
 
 ## Startup
 Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
-- The plan source: `plan.md`, else `diagnosis.md` (fix), else `task.md` (chore).
-- For a `feature`, the approved **`spec.md`** the task links (for the spec-compliance
-  lens).
-- `implementation-log.md`.
+- The plan source: the `docs/plans/` plan the `task.md` frontmatter links, else the
+  `task.md` Diagnosis section (fix), else the `task.md` brief (chore).
+- For a `feature`, the approved **spec** the frontmatter links (for the
+  spec-compliance lens).
+- The `## Implementation notes` section of `task.md`.
 - The diff: `git diff <base_commit>..HEAD` and `git log <base_commit>..HEAD --oneline`.
 
 ## Role writes
-`review.md`, `state.md`, `next.md`, `run-log.md`.
+The `## Review` section of `task.md`, plus `progress.md`. On close (`fix`/`chore`
+APPROVED): `docs/tasks/YYYY-MM-DD-<task-name>.md` and its `docs/tasks/INDEX.md` line.
 
 ## Specific rules
 Read the diff hunk by hunk and apply these **review lenses** (skip a lens if it does
@@ -34,10 +37,10 @@ not apply):
 - **Simplicity** — simplest thing that works; honest naming; no dead branches.
 - **Consistency** — reuses existing patterns/utilities and conventions.
 - **Spec compliance** (features) — verify **each acceptance criterion** in the linked
-  `spec.md` is met, with evidence (file/test). An unmet **required** criterion is at least
-  `high` (→ CHANGES_REQUESTED). For a `fix`, verify against the `diagnosis.md` instead.
-- **Fidelity to the plan** and **state files up to date** (`state.md`, `run-log.md`,
-  artifacts current).
+  spec is met, with evidence (file/test). An unmet **required** criterion is at least
+  `high` (→ CHANGES_REQUESTED). For a `fix`, verify against the Diagnosis instead.
+- **Fidelity to the plan** and **state files up to date** (`progress.md`, `task.md`
+  sections current).
 
 For every finding, assign a **severity** and make it actionable
 (`[file:line]` · why it matters · suggested fix):
@@ -54,18 +57,34 @@ Anti-padding rule: do NOT manufacture findings to look thorough — padding buri
 findings that matter. If a finding is uncertain, flag it inline as
 `[needs confirmation]` instead of lowering its severity to hide the doubt.
 
+Write the round into the `## Review` section of `task.md`: findings grouped by
+severity, then a `Verdict:` line. A new round replaces findings already resolved
+(note "round N: X findings resolved") instead of accumulating verbatim.
+
 Map the findings to the task **verdict** (write it exactly):
 - any `critical` → **BLOCKED**
 - else any `high` → **CHANGES_REQUESTED**
 - else (only `medium`/`low`/`info`) → **APPROVED** (note the medium/low items)
 
+### Task close (fix/chore, on APPROVED)
+
+Immediately after emitting `APPROVED` for a `fix` or `chore`, close the task:
+distill `task.md` into `docs/tasks/YYYY-MM-DD-<task-name>.md` (use
+`templates/resume.md`; frontmatter `tags`, `touched` ≤5 per the template's rules,
+`related`, `outcome`, spec/plan links), append the task's one-line entry to
+`docs/tasks/INDEX.md`, and set `status: DONE`. Leave these small doc writes
+uncommitted for the human to fold into a future commit (see Git rules). For a
+`feature`, the `release-manager` closes instead.
+
 ## Stop conditions
-- `CHANGES_REQUESTED` → task `status: CHANGES_REQUESTED`, `next.md` points at the
+- `CHANGES_REQUESTED` → task `status: CHANGES_REQUESTED`, `## Next` points at the
   `implementer`.
 - `BLOCKED` → `status: NEEDS_HUMAN`.
-- `APPROVED` → for a `feature`, `next.md` points at `pr-splitter` (if diff > ~15 files)
-  or `release-manager`; for `fix`/`chore`, the task is ready for the human to merge.
+- `APPROVED` → for a `feature`, `## Next` points at `pr-splitter` (if diff > ~15 files)
+  or `release-manager`; for `fix`/`chore`, close the task (see above) — the human
+  merges when ready.
 
 ## Output format
-`review.md` with the per-severity findings and a `## Verdict` section containing exactly
-one of: `APPROVED` | `CHANGES_REQUESTED` | `BLOCKED`.
+The `## Review` section of `task.md` with per-severity findings and a `Verdict:` line
+containing exactly one of: `APPROVED` | `CHANGES_REQUESTED` | `BLOCKED`; plus, on
+fix/chore close, the resume in `docs/tasks/` and its INDEX line.

@@ -1,5 +1,9 @@
 # Plan
 
+<!-- Durable plan for this feature. Lives at docs/plans/YYYY-MM-DD-<task-name>.md and is
+     linked from the task.md frontmatter (plan:). Approved by the human before
+     implementation (gate 2). -->
+
 ## Goal
 
 ## Context used
