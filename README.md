@@ -18,7 +18,8 @@ Principios:
 3. **Separación framework/proyecto** — lo genérico es idéntico y actualizable; lo
    específico del repo vive en `.agents/project/` y el updater nunca lo toca.
 4. **Git es del humano** — los agentes nunca `push`/`rebase`/reescriben historia.
-5. **No duplicar información** — `state.md` es descriptivo, `next.md` es prescriptivo.
+5. **No duplicar información** — `task.md` es la historia lógica, `progress.md` es la
+   máquina de estados; lo durable vive una sola vez en `docs/`.
 6. **Protocolo en un solo lugar** — `AGENTS.md`.
 
 ## Estructura de este repo
@@ -76,7 +77,8 @@ Start a new task using the persistent agent system.
 ```
 
 El **intake** entrevista, clasifica el tipo (feature / fix / debug / chore / spike) —o
-pregunta si es ambiguo—, crea la tarea y deja `next.md` listo. Cualquier CLI posterior
+pregunta si es ambiguo—, crea la tarea y deja el `## Next` de `progress.md` listo.
+Cualquier CLI posterior
 que reciba `Continue the current task using the persistent agent system.` sabe qué
 tarea está activa, qué fase corresponde, qué leer y qué escribir.
 

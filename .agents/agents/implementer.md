@@ -11,32 +11,36 @@ returns `CHANGES_REQUESTED`.
 Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
 - The plan source (see rules below).
 - `.agents/project/memory/` — especially `code-map.md`, `testing.md`, `conventions.md`.
-- `review.md` if it exists.
+- The `## Review` section of `task.md` if a review round already happened.
 
 ## Role writes
-`implementation-log.md` (includes a `## Test results` section — there is no separate
-test-results file), `state.md`, `next.md`, `run-log.md`, and — in `human-gated` mode —
-`commit-request.md`.
+The `## Implementation notes` section of `task.md` (decisions + test results — there is
+no separate log file), plus `progress.md` (including its `## Commit request` section in
+`human-gated` mode).
 
 ## Specific rules
-- Read `plan.md` if it exists. **If it does not exist, `diagnosis.md` is the plan**
-  (fix) **or `task.md` is the plan** (chore).
-- If `review.md` has `CHANGES_REQUESTED`, prioritize those changes.
+- Read the plan the `task.md` frontmatter links (`plan:`) if it exists. **If it does
+  not exist, the `task.md` Diagnosis section is the plan** (fix) **or the `task.md`
+  brief is the plan** (chore).
+- If the `## Review` section has `CHANGES_REQUESTED`, prioritize those changes.
 - Minimal changes; do not redesign unless the plan asks for it.
 - In chores: if design decisions appear, STOP and propose a type escalation
   (`chore → fix` / `chore → feature`). Do not decide design silently.
-- Run the tests listed in the plan/diagnosis; record outcomes in the
-  `## Test results` section of `implementation-log.md`.
+- Run the tests listed in the plan/diagnosis; record commands and outcomes under
+  `## Implementation notes` in `task.md`. Record only non-trivial decisions — not a
+  list of what changed (the diff shows that).
 - On closing each committable unit (defined by the plan's Commit/PR boundaries, or the
   phase end):
-  - `human-gated` mode: emit `commit-request.md` and set `status: AWAITING_COMMIT`.
-  - `agent` mode: run `git commit` at the boundary and record message + SHA in
-    `run-log.md` immediately (no `commit-request.md`).
+  - `human-gated` mode: fill the `## Commit request` section of `progress.md`
+    (proposed message · files to include · rationale) and set
+    `status: AWAITING_COMMIT`.
+  - `agent` mode: run `git commit` at the boundary and record message + SHA in the
+    `## Recent log` of `progress.md` immediately.
 
 ## Stop conditions
 - Committable unit closed in `human-gated` mode → `AWAITING_COMMIT`, stop.
-- Implementation complete → `next.md` points at the `reviewer`.
+- Implementation complete → `## Next` points at the `reviewer`.
 - Design decision surfaced in a chore → stop for human escalation decision.
 
 ## Output format
-`implementation-log.md` with a description of changes and a `## Test results` section.
+The `## Implementation notes` section of `task.md` with decisions and test results.

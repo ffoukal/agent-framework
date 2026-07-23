@@ -179,6 +179,29 @@ else
   echo "      hook into $SETTINGS manually (see framework README)."
 fi
 
+# --- 2.2 gitignore .agents/tasks + seed docs/tasks/INDEX.md (same as install) ---
+GITIGNORE="$DEST/.gitignore"
+if [ ! -f "$GITIGNORE" ] || ! grep -qE '^\.agents/tasks/?$' "$GITIGNORE"; then
+  { [ -f "$GITIGNORE" ] && [ -s "$GITIGNORE" ] && [ -n "$(tail -c 1 "$GITIGNORE")" ] && echo ""; \
+    echo ".agents/tasks/"; } >> "$GITIGNORE"
+  echo "Added .agents/tasks/ to .gitignore (local working state)."
+  if git -C "$DEST" ls-files --error-unmatch .agents/tasks >/dev/null 2>&1; then
+    echo "NOTE: .agents/tasks/ has tracked files from before this version. To untrack them:"
+    echo "  git rm -r --cached .agents/tasks"
+  fi
+fi
+if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
+  mkdir -p "$DEST/docs/tasks"
+  cat > "$DEST/docs/tasks/INDEX.md" <<'EOF'
+# Task index
+
+<!-- One line per closed task, appended by the terminal agent at close. Format:
+     - YYYY-MM-DD TASK-ID type [tag, tag] touched/paths — one-line summary
+     The intake reads THIS file (never the whole resumes) to recall related work. -->
+EOF
+  echo "Seeded docs/tasks/INDEX.md."
+fi
+
 # --- 3. regenerate native subagent adapters from updated agents + config ----
 echo ""
 "$DEST/.agents/scripts/agent-models-sync"

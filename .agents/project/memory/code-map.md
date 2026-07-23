@@ -35,8 +35,8 @@
   specifier, orchestrator); role-specific behavior, points back to `AGENTS.md`.
 - `.agents/project/config.yml` — commit mode + per-agent model tier/effort mapping;
   the single source of truth for model routing.
-- `.agents/templates/*.md` — canonical templates for every phase artifact
-  (task, state, next, run-log, plan, diagnosis, review, commit-request, ...).
+- `.agents/templates/*.md` — canonical templates: `task.md`, `progress.md`,
+  `resume.md` (durable task resume), `spec.md`, `plan.md`, `split-plan.md`.
 
 ## Where to add X
 - New agent role → add `.agents/agents/<role>.md` in `framework/.agents/agents/`

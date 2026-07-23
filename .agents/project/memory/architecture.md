@@ -32,12 +32,14 @@ entirely in versioned Markdown, not in a process or database.
   `agent-models-sync` from `.agents/agents/*.md` + `config.yml`; not source.
 
 ## Data flow
-A task's lifecycle: `intake` creates `.agents/tasks/<id>/{task.md,state.md,next.md}`
-→ each subsequent phase agent reads `state.md`/`next.md` (+ referenced phase
-artifacts), does its work, writes its own phase artifact, updates `state.md` and
-`next.md`, appends to `run-log.md` → repeats until a terminal status (`DONE`,
-`NEEDS_HUMAN`) or a gate (`AWAITING_COMMIT`) is hit. No component calls another at
-runtime; hand-off is entirely through files a human or the next CLI session reads.
+A task's lifecycle: `intake` creates `.agents/tasks/<id>/{task.md,progress.md}`
+(gitignored, local) → each subsequent phase agent reads `progress.md` (state + Next)
+and the `task.md` sections it needs, does its work, writes into its `task.md` section
+(or durable doc in `docs/specs|plans/`), updates `progress.md` → repeats until a
+terminal status (`DONE`, `NEEDS_HUMAN`) or a gate (`AWAITING_COMMIT`) is hit. At
+close, the terminal agent distills `task.md` into `docs/tasks/YYYY-MM-DD-<name>.md`
+plus an `INDEX.md` line. No component calls another at runtime; hand-off is entirely
+through files a human or the next CLI session reads.
 
 ## External dependencies
 None at runtime. Build-time/distribution dependency: GitHub Releases (semver tags)

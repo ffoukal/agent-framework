@@ -22,13 +22,14 @@ mechanism directly. If your CLI has no subagent dispatch, use the manual fallbac
   it exactly the context it needs and nothing more. This keeps it focused and preserves
   your context for coordination.
 - **The repo is the memory.** Every dispatched subagent runs the full shutdown protocol
-  (writes its artifact, updates `state.md`, appends `run-log.md`, writes `next.md`, runs
-  `agent-task-check`). So if the session dies, re-invoking resumes cleanly from disk.
+  (writes its output into `task.md` or the durable doc, updates `progress.md` —
+  frontmatter, `## Next`, Recent log — runs `agent-task-check`). So if the session
+  dies, re-invoking resumes cleanly from disk.
 - **English only.** All files written to the repo are in English (see `AGENTS.md`).
 
 ## The loop
 
-1. Read `.agents/project/config.yml`, `state.md`, `next.md`. Note `commits.mode` and any
+1. Read `.agents/project/config.yml` and `progress.md`. Note `commits.mode` and any
    `stop_at`.
 2. Identify the current phase and its agent.
 3. **Pause and return to the human** if:
@@ -45,9 +46,10 @@ mechanism directly. If your CLI has no subagent dispatch, use the manual fallbac
    - **Effort** is advisory: fold `models.agents[<agent>].effort` into the brief
      (e.g. "think harder for a high-effort review"). `model` is the routed knob.
    - **Brief (isolated):** task id, phase, and the "Read first / Do / Stop when /
-     Expected writes" from `next.md`. Do not paste your history.
+     Expected writes" from the `## Next` section of `progress.md`. Do not paste your
+     history.
    - **Instruction:** follow the normal shutdown protocol before returning.
-5. **Integrate:** re-read `state.md`.
+5. **Integrate:** re-read `progress.md`.
    - verdict `CHANGES_REQUESTED` → next agent is `implementer` (loop);
    - `BLOCKED` | `NEEDS_HUMAN` → pause, surface to the human;
    - task `APPROVED` | `DONE` → stop;
@@ -79,7 +81,7 @@ mechanical, and the dispatched subagent carries its own model from the adapters.
 ## Manual fallback (no subagent dispatch)
 
 Do not dispatch. For each phase, resolve the agent's model/effort as above, write it into
-`next.md`'s "Agent to use", and tell the human to run that phase (optionally in a new
+the "Agent to use" of `progress.md` `## Next`, and tell the human to run that phase (optionally in a new
 session with that model). The pipeline still advances through the repo state — just with
 the human as the dispatcher.
 

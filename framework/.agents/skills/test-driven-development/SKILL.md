@@ -24,8 +24,8 @@ Work one behavior at a time in a tight loop:
 - A good test name states the behavior verified, e.g.
   `rejects duplicate email on signup`.
 - After finishing a unit, run the **full** suite (not only the tests you touched) for an
-  integrity check, and record the outcome in `implementation-log.md` under
-  `## Test results`.
+  integrity check, and record the outcome under `## Implementation notes` in the
+  task's `task.md`.
 - If a design decision surfaces mid-implementation on a `chore`, stop and propose a type
   escalation instead of deciding silently (see `implementer.md`).
 
