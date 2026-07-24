@@ -179,7 +179,19 @@ if [ -f "$PROGRESS" ]; then
   if [ "$LOG_ENTRIES" -lt 1 ]; then
     fail "progress.md Recent log has no entries (expected at least one after doing work)"
   elif [ "$LOG_ENTRIES" -gt 7 ]; then
+    fail "progress.md Recent log has $LOG_ENTRIES entries — keep only the last ~5 (drop the oldest)"
+  elif [ "$LOG_ENTRIES" -gt 5 ]; then
     warn "progress.md Recent log has $LOG_ENTRIES entries — trim to the last ~5 (drop the oldest)"
+  fi
+fi
+
+# --- progress.md size cap (context budget: sections are overwritten, not appended) --
+if [ -f "$PROGRESS" ]; then
+  P_LINES=$(wc -l < "$PROGRESS" | tr -d ' ')
+  if [ "$P_LINES" -gt 120 ]; then
+    fail "progress.md is $P_LINES lines (cap 120) — ## Next and ## Commit request are overwritten in place, Recent log keeps ~5 entries; move any narrative to task.md"
+  elif [ "$P_LINES" -gt 90 ]; then
+    warn "progress.md is $P_LINES lines — trim toward the template shape (~50 lines + content)"
   fi
 fi
 

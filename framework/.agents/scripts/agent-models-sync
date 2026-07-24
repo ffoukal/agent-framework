@@ -52,11 +52,15 @@ for f in "$AGENTS"/*.md; do
   desc=$(role_desc "$f"); [ -n "$desc" ] || desc="$agent agent"
   gen="<!-- GENERATED — do not edit; edit .agents/agents/$agent.md and config.yml, then run agent-models-sync -->"
 
+  # Only the orchestrator may dispatch subagents (nested orchestration, layer 1).
+  # Every phase agent gets Agent denied so it can never spawn a layer of its own,
+  # even when dispatched directly from the main session.
   {
     echo "---"
     echo "name: $agent"
     echo "description: $desc (see .agents/agents/$agent.md)"
     echo "model: ${cm:-inherit}"
+    [ "$agent" != "orchestrator" ] && echo "disallowedTools: Agent"
     echo "---"
     echo "$gen"
     echo ""
@@ -112,28 +116,29 @@ emit_command() {
   done
 }
 
-emit_command task-new "Start a new task (intake interview) in the persistent agent system" \
-  'Start a new task using the persistent agent system. $ARGUMENTS'
-emit_command task-continue "Continue the current task from its persisted state" \
-  'Continue the current task using the persistent agent system. $ARGUMENTS'
-emit_command task-status "Show state, next step and recent log of the current task" \
-  'Run `.agents/scripts/agent-task-status $ARGUMENTS` and report its output briefly. Do not read other task files.'
-emit_command orchestrate "Run the task pipeline until the next human gate, dispatching subagents" \
-  'Orchestrate the current task using the persistent agent system. $ARGUMENTS'
-emit_command task-step "Run only the next phase of the task as a subagent, then stop" \
-  'Run only the next phase of the current task using the persistent agent system: apply the orchestrating-agents skill in step mode — dispatch that single phase as a subagent with its adapter model, integrate the result, report what ran and what comes next, then stop. $ARGUMENTS'
+emit_command task "Advance the current task until the next human gate (subcommands — step | status | change | stop after <phase>)" \
+  'Advance the current task using the persistent agent system. Route on the arguments — "$ARGUMENTS":
 
-# Prune generated commands whose definition no longer exists upstream.
+- (empty) → run the pipeline until the next human gate.
+- `status` → run `.agents/scripts/agent-task-status`, report briefly, and name the exact command that comes next. Do not read other task files.
+- `step` → run exactly ONE phase, then stop and hand back.
+- `stop after <phase>` → run until that phase completes, then stop.
+- `change <description>` → mid-task definition change: handle it in THIS session (never inside the orchestrator). Log it in task.md "Evolution & human decisions"; update the spec/plan if affected (re-run the approval gate if acceptance criteria moved); rewind progress.md phase/`## Next` to the earliest affected phase. Confirm the rewind with the human before writing it.
+
+Execution model (all routes except `status` and `change`): if `.agents/current-task` is empty or missing, run the intake interview in this session first. If the current phase is interactive (intake, specifier), hold that conversation in this session. Otherwise dispatch the `orchestrator` subagent — fresh, with no session history; it reads all state from `.agents/tasks/<id>/` and returns at gates. Pass it only: the task id, the granularity (until-gate | one-phase | stop-after <phase>), and the instruction to follow the orchestrating-agents skill. When it returns, relay its report: what ran, what it is waiting on, and that `/task` resumes. If this CLI cannot dispatch subagents, apply the orchestrating-agents skill manual fallback instead.'
+
+# Prune generated commands whose definition no longer exists upstream (this removes
+# the pre-1.x commands: task-new, task-continue, task-status, task-step, orchestrate).
 for dir in "$CLAUDE_CMDS" "$OPENCODE_CMDS"; do
   for c in "$dir"/*.md; do
     [ -f "$c" ] || continue
     name=$(basename "$c" .md)
-    case "$name" in task-new|task-continue|task-status|task-step|orchestrate) continue ;; esac
+    case "$name" in task) continue ;; esac
     grep -q 'GENERATED — do not edit' "$c" && rm -f "$c"
   done
 done
 
-echo "Regenerated slash commands: .claude/commands/ and .opencode/command/ (task-new, task-continue, task-status, task-step, orchestrate)."
+echo "Regenerated slash commands: .claude/commands/ and .opencode/command/ (task — with step | status | change | stop-after routes)."
 
 # Codex config is per-user (not per-repo) — print the recipe to apply by hand.
 echo ""
@@ -147,7 +152,6 @@ echo "----------------------------------------------------------------------"
 echo ""
 echo "Codex (per-user) — optional custom prompts in ~/.codex/prompts/:"
 echo "----------------------------------------------------------------------"
-echo "task-new.md:      Start a new task using the persistent agent system."
-echo "task-continue.md: Continue the current task using the persistent agent system."
-echo "orchestrate.md:   Orchestrate the current task using the persistent agent system."
+echo "task.md: Advance the current task using the persistent agent system (no subagent"
+echo "         dispatch on Codex: apply the orchestrating-agents skill manual fallback)."
 echo "----------------------------------------------------------------------"

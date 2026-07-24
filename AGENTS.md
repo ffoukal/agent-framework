@@ -246,29 +246,49 @@ territory**:
 All CLIs discover this path: Codex and OpenCode scan `.agents/skills/` natively; Claude
 Code reaches it via the `.claude/skills -> ../.agents/skills` symlink created at install.
 
-## Orchestration (single-session pipelines)
+## Orchestration (`/task` — the main flow)
 
-The **orchestrator** runs the pipeline in one session, dispatching each autonomous phase
-as a **subagent** (model resolved from `config.yml`) with an isolated brief — never its
-own history — instead of the human opening a session per phase. Interactive phases
-(`intake`, `specifier`) stay in the main session; the rest are dispatched. It pauses
-at hard gates (`NEEDS_HUMAN` | `BLOCKED` | `AWAITING_COMMIT`, plan approval) and at the
-human's `stop-at`. `commits.mode: agent` is recommended for full fluidity; `human-gated`
-pauses per commit. Full methodology (loop, agnostic fallback for CLIs without dispatch)
-in `orchestrator.md` and the `orchestrating-agents` skill.
+The human's entry point is **one command: `/task`**. It reads the persisted state and
+does the right thing: no active task → run the **intake** in the main session; current
+phase interactive (`intake`, `specifier`) → hold it in the main session; otherwise →
+dispatch the **orchestrator** as a subagent, which runs the pipeline and returns at
+gates.
+
+**Nested topology (enforced, not advisory):** the orchestrator is a layer-1 subagent
+on the cheap model its generated adapter fixes — it never inherits the main session's
+model. It dispatches each autonomous phase as a layer-2 subagent (adapter model,
+isolated brief — never its own history; ≤10-line replies). Phase-agent adapters deny
+the Agent tool and the installer caps spawn depth at 2
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` in `.claude/settings.json`), so the topology
+cannot silently degrade. The main session pays only a dispatch and a short report.
+
+**Gate = return.** At hard gates (`NEEDS_HUMAN` | `BLOCKED` | `AWAITING_COMMIT`, plan
+approval), interactive phases, and the human's stop boundary, the orchestrator writes
+state to disk and returns — it never waits. Resuming is always from disk: the next
+`/task` dispatches a fresh orchestrator that reconstructs everything from
+`progress.md`/`task.md`, in any session, any CLI, any day. `commits.mode: agent` is
+recommended when orchestrating; `human-gated` returns once per commit boundary.
 
 **The granularity is a human decision, chosen per invocation:**
 
 ```
-Orchestrate the current task using the persistent agent system.   # run until the next gate
-Orchestrate the current task; stop after <phase>.                 # run until <phase>
-Run only the next phase of the current task, then stop.           # step mode: ONE phase
-Continue orchestrating the current task using the persistent agent system.
+/task                        # run until the next human gate (default)
+/task step                   # exactly ONE phase, then stop
+/task stop after <phase>     # run until <phase> completes
+/task status                 # read-only: state, pending gate, next command
+/task change <description>   # mid-task definition change (see below)
 ```
 
-Step mode dispatches a single phase as a subagent (adapter-resolved model, no manual
-model/effort picking) and hands back — same gates, same protocol, human control between
-every phase. Slash commands: `/orchestrate` and `/task-step`.
+(Equivalent prose prompts — "Advance the current task using the persistent agent
+system", etc. — work on any CLI; on CLIs without subagent dispatch or nesting, the
+`orchestrating-agents` skill's manual fallback applies.)
+
+**Mid-task definition changes (`/task change`)** run in the main session, never inside
+the orchestrator: log the decision in task.md "Evolution & human decisions"; update
+the spec/plan if affected (re-run the approval gate if acceptance criteria moved);
+rewind `progress.md` to the earliest affected phase, confirming with the human first.
+An orchestrator that detects a scope change returns `NEEDS_HUMAN` — it never absorbs
+one. Full methodology in `orchestrator.md` and the `orchestrating-agents` skill.
 
 ## Context growth control
 
@@ -296,11 +316,22 @@ Sessions run on limited quota. Every agent MUST:
 - Not dispatch subagents outside orchestration — each dispatch re-reads the protocol.
 - Keep artifacts factual and compact: no restating the protocol, no summarizing files
   that are already on disk (link them instead).
+- **Honor the context compact gate** (`context.compact_gate` in `config.yml`, default
+  40): when your context usage reaches that share of the window — harness warnings,
+  or your own read that the session has grown well past its starting size — do NOT
+  start a new phase or major work unit. Finish the current unit, run the shutdown
+  protocol, and hand off to a fresh context: the orchestrator returns (the next
+  `/task` resumes from disk at zero cost); a phase agent wraps up and reports; the
+  main session suggests the human `/clear` and re-run `/task`. Never compact by
+  summarizing into chat — the handoff IS the compaction, because the repo is the
+  memory.
 
-When quota is tight, prefer the **manual flow** (one fresh session per phase) over
-orchestration: each session starts with a minimal context, while an orchestrator
-session accumulates coordination context across the whole pipeline. Lowering tiers in
-`config.yml` `models.agents` (e.g. review of a `chore` on `fast`) is the other lever.
+Nested orchestration is already the cheap path: coordination runs on the
+orchestrator's own cheap model and dies at every gate, so the main session never
+accumulates it. When quota is tight, the levers are: `/task step` (no multi-phase
+coordination at all), lowering tiers in `config.yml` `models.agents` (e.g. review of
+a `chore` on `fast`), and — on CLIs stuck with in-session coordination (no nesting) —
+the manual flow (one fresh session per phase).
 
 ---
 

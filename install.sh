@@ -53,7 +53,7 @@ else
   fi
 fi
 
-cleanup() { [ -n "$CLEANUP_SRC" ] && rm -rf "$CLEANUP_SRC"; }
+cleanup() { if [ -n "$CLEANUP_SRC" ]; then rm -rf "$CLEANUP_SRC"; fi; }
 trap cleanup EXIT
 
 echo "Installing into: $DEST"
@@ -212,6 +212,10 @@ fi
 #   - permissions.deny blocks push/rebase/hard-reset/amend/filter-branch outright;
 #   - a PreToolUse hook (.agents/scripts/agent-git-guard) catches compound commands
 #     and blocks `git commit` when commits.mode is human-gated.
+#   - env CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2 enables nested orchestration
+#     (main session -> orchestrator -> phase agents) and caps it at that depth.
+#     Requires Claude Code >= 2.1.217 (between 2.1.172 and 2.1.216 nesting was on
+#     by default; earlier versions fall back to in-session coordination).
 # On other CLIs the same rules stay prose-enforced (AGENTS.md).
 SETTINGS="$DEST/.claude/settings.json"
 mkdir -p "$DEST/.claude"
@@ -220,6 +224,9 @@ GUARD_CMD='\"$CLAUDE_PROJECT_DIR\"/.agents/scripts/agent-git-guard'
 FULL_SETTINGS=$(cat <<EOF
 {
   "includeCoAuthoredBy": false,
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2"
+  },
   "permissions": {
     "deny": [
       "Bash(git push)",
@@ -251,6 +258,7 @@ elif command -v jq >/dev/null 2>&1; then
     .permissions.deny as $deny | .hooks.PreToolUse[0] as $guard
     | $cur[0]
     | .includeCoAuthoredBy = false
+    | .env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = "2"
     | .permissions.deny = (((.permissions.deny // []) + $deny) | unique)
     | .hooks.PreToolUse = (
         (.hooks.PreToolUse // []) as $pre

@@ -2,6 +2,7 @@
 name: security-reviewer
 description: Focused security review of a diff that touches sensitive surfaces. (see .agents/agents/security-reviewer.md)
 model: sonnet
+disallowedTools: Agent
 ---
 <!-- GENERATED — do not edit; edit .agents/agents/security-reviewer.md and config.yml, then run agent-models-sync -->
 

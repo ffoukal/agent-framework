@@ -51,7 +51,7 @@ else
     exit 1
   fi
 fi
-cleanup() { [ -n "$CLEANUP_SRC" ] && rm -rf "$CLEANUP_SRC"; }
+cleanup() { if [ -n "$CLEANUP_SRC" ]; then rm -rf "$CLEANUP_SRC"; fi; }
 trap cleanup EXIT
 
 # --- 1. version comparison -------------------------------------------------
@@ -130,6 +130,9 @@ GUARD_CMD='\"$CLAUDE_PROJECT_DIR\"/.agents/scripts/agent-git-guard'
 FULL_SETTINGS=$(cat <<EOF
 {
   "includeCoAuthoredBy": false,
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2"
+  },
   "permissions": {
     "deny": [
       "Bash(git push)",
@@ -161,6 +164,7 @@ elif command -v jq >/dev/null 2>&1; then
     .permissions.deny as $deny | .hooks.PreToolUse[0] as $guard
     | $cur[0]
     | .includeCoAuthoredBy = false
+    | .env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = "2"
     | .permissions.deny = (((.permissions.deny // []) + $deny) | unique)
     | .hooks.PreToolUse = (
         (.hooks.PreToolUse // []) as $pre

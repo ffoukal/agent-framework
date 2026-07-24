@@ -5,6 +5,47 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Single `/task` command + nested orchestration (breaking)
+- **One entry point:** the five slash commands (`/task-new`, `/task-continue`,
+  `/task-status`, `/task-step`, `/orchestrate`) are replaced by a single **`/task`**
+  command that reads the persisted state and does the right thing: no active task →
+  intake in the main session; interactive phase → stays in the main session;
+  otherwise → dispatches the orchestrator. Subcommands: `step` (one phase),
+  `status` (read-only), `stop after <phase>`, and `change <description>` (mid-task
+  definition change). `agent-models-sync` generates `/task` and prunes the old
+  generated commands.
+- **Nested orchestration:** the orchestrator now runs as a **dispatched subagent**
+  (layer 1) on the model its adapter fixes from `config.yml` — never the main
+  session's model — and dispatches each phase agent as a layer-2 nested subagent.
+  **Gate = return:** at `NEEDS_HUMAN` | `BLOCKED` | `AWAITING_COMMIT`, plan approval,
+  interactive phases, or `stop-at`, it writes state to disk and returns instead of
+  waiting; the next `/task` dispatches a fresh orchestrator that resumes from disk
+  (any session, any CLI). This keeps coordination context short and cheap by
+  construction.
+- **Hard enforcement of the cheap topology:** install/update set
+  `env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` in `.claude/settings.json`
+  (Claude Code ≥ 2.1.217; 2.1.172–2.1.216 nested by default); phase-agent adapters
+  now carry `disallowedTools: Agent` so only the orchestrator can dispatch; subagent
+  briefs require ≤10-line replies (detail stays on disk); `agent-task-check` now
+  FAILs on `progress.md` > 120 lines (warn > 90) and on a Recent log > 7 entries
+  (warn > 5).
+- **Mid-task definition changes** are now a first-class flow (`/task change`): logged
+  in task.md "Evolution & human decisions", spec/plan updated (re-approval if
+  acceptance criteria moved), `progress.md` rewound to the earliest affected phase
+  with human confirmation. The orchestrator never absorbs a scope change — it
+  returns `NEEDS_HUMAN`.
+- **Context compact gate:** new `context.compact_gate` in `config.yml` (default 40,
+  % of the context window). At/above it, an agent must not start a new phase or major
+  unit: it finishes the shutdown protocol and hands off to a fresh context (the
+  orchestrator returns early — lossless, since `/task` resumes from disk; the main
+  session suggests `/clear` + `/task`). Advisory by nature (agents estimate usage
+  from harness warnings and session growth); the disk-based handoff is what makes
+  the cut cheap.
+- Docs rewritten accordingly (`AGENTS.md` § Orchestration, `.agents/README.md`,
+  `orchestrator.md`, `orchestrating-agents` skill), including the token-economy
+  guidance: nested orchestration is now the default cheap path; the manual flow
+  remains the fallback for CLIs without dispatch/nesting.
+
 ### Two-file task model + durable docs (breaking)
 - Each task now keeps exactly **two working files**: `task.md` (the living logical
   document — brief, evolution & human decisions, Diagnosis, Findings, Implementation

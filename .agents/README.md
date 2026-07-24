@@ -38,101 +38,86 @@ versionado en `docs/`: `docs/specs/` (specs), `docs/plans/` (planes) y `docs/tas
 El **protocolo universal** vive en `AGENTS.md` (raíz del repo). `CLAUDE.md` solo
 importa `@AGENTS.md`. Codex y OpenCode leen `AGENTS.md` nativamente.
 
-## Cómo crear una tarea
+## Cómo usarlo: un solo comando
 
-No crees archivos a mano. Usá el **intake** (agente conversacional):
+Todo el ciclo de vida pasa por **`/task`**. Mira el estado persistido y hace lo
+correcto:
 
-```text
-Start a new task using the persistent agent system.
-```
-
-El intake entrevista, clasifica el tipo (feature / fix / debug / chore / spike),
-propone un resumen, y recién con tu confirmación crea la tarea, setea `current-task`
-y deja el `## Next` de `progress.md` listo para el primer agente del pipeline.
-
-(La primitiva de bajo nivel es `.agents/scripts/agent-task-new`, pero la puerta de
-entrada documentada es el intake.)
-
-## Cómo continuar desde cualquier CLI
-
-Abrí cualquier CLI en el repo y decí:
+- **No hay tarea activa** → arranca el **intake** en tu sesión: entrevista, clasifica
+  (feature / fix / debug / chore / spike), propone un resumen y recién con tu
+  confirmación crea la tarea. (La primitiva de bajo nivel es
+  `.agents/scripts/agent-task-new`; la puerta de entrada es el intake.)
+- **Fase interactiva** (`intake`, `specifier`) → la conversación queda en tu sesión.
+- **Fase autónoma** → despacha el **orquestador** como subagente (modelo barato,
+  fijado por su adapter), que corre el pipeline y **retorna en cada gate** diciéndote
+  exactamente qué necesita. Resolvés el gate (commit, aprobación) cuando quieras y
+  volvés a tipear `/task` — en esta sesión o en una fresca: el estado vive en disco,
+  nada depende de la sesión vieja.
 
 ```text
-Continue the current task using the persistent agent system.
+/task                        # avanza hasta el próximo gate (default)
+/task step                   # UNA fase y para (control total entre pasos)
+/task stop after review      # corre hasta terminar esa fase
+/task status                 # solo lectura: estado, gate pendiente, qué sigue
+/task change <descripción>   # cambio de definición a mitad de tarea
 ```
 
-El agente lee `current-task`, `progress.md` (estado + próximo paso) y `task.md`, y
-sigue. Podés ser explícito con el rol:
+Tus únicas responsabilidades: responder al intake/specifier, aprobar spec/plan/split,
+commitear en los gates (modo `human-gated`), pushear, y relanzar `/task`.
+
+**Cambios de definición** (`/task change` o decirlo en prosa): se registran en
+`task.md` "Evolution & human decisions", se actualiza spec/plan si corresponde
+(re-aprobación si se movieron los criterios), y la máquina de estados rebobina hasta
+la fase afectada — confirmándolo con vos antes. El orquestador nunca absorbe un cambio
+de alcance en silencio.
+
+En cualquier CLI sin slash commands sirve el prompt equivalente:
+`Advance the current task using the persistent agent system.`; para forzar un rol:
+`Continue TASK-123 as implementer. Read .agents/tasks/TASK-123/progress.md and follow the persistent agent protocol.`
+
+## Cómo funciona la orquestación (anidada)
 
 ```text
-Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/progress.md` and follow the persistent agent protocol.
-Continue the current task as reviewer. Read the persistent task state and review the diff against base_commit.
+tu sesión (cualquier modelo)          paga solo dispatch + reportes cortos
+ └── orchestrator (subagente, modelo fast por adapter)
+      ├── despacha cada fase como subagente anidado (modelo por adapter)
+      │     planner · debugger · explorer · implementer · reviewer ·
+      │     security-reviewer · pr-splitter · release-manager
+      └── gate → escribe estado en disco y RETORNA (nunca espera)
 ```
 
-## Orquestación (todo en una sesión)
-
-En vez de abrir una sesión por fase, podés pedirle al **orquestador** que corra el
-pipeline solo, despachando cada fase autónoma como **subagente** con el modelo resuelto
-de `config.yml`. Frena solo donde hace falta un humano (fases interactivas, gates,
-`stop-at`).
-
-**Vos elegís la granularidad en cada invocación** — hasta el próximo gate, o de a una
-fase:
-
-```text
-Orchestrate the current task using the persistent agent system.   # hasta el próximo gate
-Orchestrate the current task; stop after review.                  # hasta una fase dada
-Run only the next phase of the current task, then stop.           # step mode: UNA fase
-Continue orchestrating the current task using the persistent agent system.
-```
-
-O directamente `/orchestrate` y `/task-step`.
-
-- Interactivas (quedan con vos): `intake`, `specifier`.
-- Autónomas (se despachan): planner, debugger, explorer, implementer, reviewer,
-  security-reviewer, pr-splitter, release-manager.
+- Cada agente de fase lee todo de `task.md`/`progress.md` — nunca hereda historia de
+  chat — y responde con ≤10 líneas: el detalle queda en disco.
+- La topología es regla dura: el installer setea
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` (Claude Code ≥ 2.1.217) y los adapters de
+  los agentes de fase niegan la tool `Agent`, así que ni la coordinación puede correr
+  en tu modelo caro ni un agente de fase puede despachar por su cuenta.
 - Para full fluidez sin frenar por commit, usá `commits.mode: agent` en `config.yml`
-  (en `human-gated` frena en cada boundary para que commitees vos). El push siempre es
-  humano.
+  (en `human-gated` retorna en cada boundary para que commitees vos). El push siempre
+  es humano.
+- CLIs sin subagentes o sin anidamiento: fallback de la skill `orchestrating-agents`
+  (coordinación en sesión — usala con un modelo barato — o flujo manual por fase).
 
 Detalle completo en `AGENTS.md` (§ Orchestration) y en la skill `orchestrating-agents`.
-
-## Slash commands
-
-El install genera comandos delgados que envuelven los prompts canónicos (mismo
-generador que los adaptadores: `agent-models-sync`):
-
-- `/task-new` — arranca el intake de una tarea nueva.
-- `/task-continue` — continúa la tarea actual desde el estado persistido.
-- `/task-status` — muestra estado, próximo paso y últimas entradas del log.
-- `/task-step` — corre **solo la próxima fase** como subagente y para (step mode).
-- `/orchestrate` — corre el pipeline **hasta el próximo gate** (acepta args, ej.
-  `stop after review`).
-
-La granularidad es **decisión humana por invocación**: `/task-step` para avanzar de a
-una fase con control total entre pasos; `/orchestrate` para dejarlo correr hasta que
-haga falta un humano. En ambos el modelo/effort de cada fase lo resuelven los
-adaptadores — nunca se elige a mano.
-
-Claude Code los lee de `.claude/commands/`; OpenCode de `.opencode/command/`. Para
-Codex, `agent-models-sync` imprime la receta de prompts per-user (`~/.codex/prompts/`).
-Son generados — no los edites; se regeneran con el sync.
+`/task` es generado por `agent-models-sync` (Claude Code: `.claude/commands/`;
+OpenCode: `.opencode/command/`; Codex: receta per-user impresa por el sync). No lo
+edites — se regenera.
 
 ## Modo ahorro (cuota / tokens)
 
-Cuando la cuota aprieta:
+La orquestación anidada ya es el camino barato: la coordinación corre en modelo `fast`
+y muere en cada gate, así que no se acumula contexto caro. Si la cuota aprieta más:
 
-1. **Usá `/task-step` con la sesión principal en un modelo barato.** El orquestador es
-   tier `fast` por default: la coordinación es mecánica y cada subagente corre con su
-   propio modelo (adapter). De a un paso, el contexto de coordinación no se acumula
-   (intercalá `/clear` si querés resetearlo), y no elegís modelo/effort a mano nunca.
-   El flujo manual (sesión por fase) queda como fallback para CLIs sin subagentes.
-2. **Bajá tiers en `config.yml`** (`models.agents`): p. ej. review de un `chore` en
+1. **`/task step`**: de a una fase, cero coordinación multi-fase acumulada.
+2. **Gate de contexto** (`context.compact_gate` en `config.yml`, default 40%): al
+   alcanzarlo, el agente no arranca otra fase — cierra protocolo y corta; retomar de
+   disco es gratis. Subilo o bajalo por repo.
+3. **Bajá tiers en `config.yml`** (`models.agents`): p. ej. review de un `chore` en
    `fast`, implementer de cambios mecánicos en `standard` con effort `low`. Después
    corré `agent-models-sync`.
-3. **Respetá el Context budget** de `AGENTS.md` (§ Context growth control): leer solo
+4. **Respetá el Context budget** de `AGENTS.md` (§ Context growth control): leer solo
    lo listado, `git diff --stat` primero, grep antes que lecturas completas.
-4. **No saltees el gate de plan**: rehacer una implementación desviada es el mayor
+5. **No saltees el gate de plan**: rehacer una implementación desviada es el mayor
    gasto de tokens posible.
 
 ## Reglas de git con enforcement mecánico (Claude Code)
@@ -145,14 +130,17 @@ Además de la prosa de `AGENTS.md`, el install deja en `.claude/settings.json`:
   compuestos (`cd x && git push`) y bloquea `git commit` cuando `commits.mode` es
   `human-gated` (lee `config.yml` en vivo, así cambiar de modo no requiere tocar el
   hook).
+- `env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` — habilita y a la vez limita la
+  orquestación anidada (sesión → orquestador → agentes de fase, nada más profundo).
 
 En OpenCode/Codex no existe un hook equivalente: ahí rigen las mismas reglas por prosa.
 
 ## Cambiar entre Claude Code / Codex / OpenCode
 
 No hay nada especial que hacer: todas leen los mismos archivos. Cerrá una, abrí la
-otra en el mismo repo, y usá el prompt "Continue the current task...". El handoff está
-en `progress.md` (frontmatter + sección `## Next`).
+otra en el mismo repo, y usá `/task` (o el prompt "Advance the current task using the
+persistent agent system."). El handoff está en `progress.md` (frontmatter + sección
+`## Next`).
 
 ## Skills del equipo (`.agents/skills/`)
 
@@ -245,12 +233,14 @@ genera la receta de rebase para el siguiente.
 
 1. **install** — corrés `install.sh` desde el repo destino; se copia el framework y se
    pre-llenan borradores con los detectores.
-2. **intake** — "Start a new task..."; el intake entrevista, clasifica y crea la tarea.
-3. **plan** — el `planner` escribe el plan en `docs/plans/` con Commit/PR boundaries
-   y para en `NEEDS_HUMAN`.
-4. **gate** — vos aprobás el plan.
+2. **`/task`** — no hay tarea activa: el intake entrevista, clasifica y crea la tarea;
+   el orquestador arranca solo el pipeline.
+3. **plan** — el `planner` escribe el plan en `docs/plans/` con Commit/PR boundaries;
+   el orquestador retorna en `NEEDS_HUMAN`.
+4. **gate** — vos aprobás el plan → `/task`.
 5. **implement** — el `implementer` implementa por capas y emite un commit request en
-   `progress.md` (o commitea, según modo) en cada boundary.
+   `progress.md` (o commitea, según modo) en cada boundary; en `human-gated`
+   commiteás y relanzás `/task` por boundary.
 6. **review** — el `reviewer` revisa el diff contra el plan y escribe la sección
    `## Review` de `task.md` con verdict.
 7. **split** — si el diff es grande, el `pr-splitter` propone y (aprobado) ejecuta el
@@ -260,11 +250,13 @@ genera la receta de rebase para el siguiente.
 9. **update** — cuando sale una versión nueva del framework, corrés `update.sh`; se
    actualiza todo menos `project/`, `tasks/` y `current-task`.
 
-## Prompts universales
+## Prompts universales (CLIs sin slash commands)
 
 ```text
-Start a new task using the persistent agent system.
-Continue the current task using the persistent agent system.
+Advance the current task using the persistent agent system.
+Advance the current task; run only the next phase, then stop.
 Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/progress.md` and follow the persistent agent protocol.
 Continue the current task as reviewer. Read the persistent task state and review the diff against base_commit.
 ```
+
+(Sin tarea activa, el primero arranca el intake — igual que `/task`.)

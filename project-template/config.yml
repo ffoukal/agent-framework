@@ -4,6 +4,10 @@
 commits:
   mode: human-gated        # human-gated | agent  (see AGENTS.md git rules)
   coauthor_trailers: false # keep false: no AI co-author trailers in commit messages
+context:
+  compact_gate: 40         # % of the context window; at/above it an agent must not
+                           # start a new phase/major unit — finish the shutdown
+                           # protocol and hand off (see AGENTS.md context budget)
 models:
   agents:                  # tier/effort per agent — single source of truth.
     orchestrator:      { tier: fast,     effort: low }       # coordination is mechanical;

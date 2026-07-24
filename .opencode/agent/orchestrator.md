@@ -1,5 +1,5 @@
 ---
-description: Run a task's pipeline end-to-end in a single session by dispatching each autonomous (see .agents/agents/orchestrator.md)
+description: Run a task's pipeline by dispatching each autonomous phase as a subagent, returning (see .agents/agents/orchestrator.md)
 model: <provider/model>
 ---
 <!-- GENERATED — do not edit; edit .agents/agents/orchestrator.md and config.yml, then run agent-models-sync -->
