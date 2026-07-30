@@ -16,6 +16,11 @@
 ## Build & test
 <!-- TODO: exact commands to build, test, lint. The detectors may have drafted these. -->
 
+Agents run tests through `.agents/scripts/agent-test` (`all` | `one <pattern>` |
+`show <test>`) — never by dumping the raw test-runner output into the session. The
+repo implementation lives in `.agents/project/agent-test.sh` (repo-owned; the
+installer seeds a reference for detected stacks — verify its TODOs).
+
 ## Project-specific rules
 <!-- TODO: any rule agents must obey that is NOT a config flag. There are no per-repo
      agent overrides in v1 — put such rules here; agents read them in startup step 0.

@@ -195,6 +195,24 @@ if [ "$NEW_PROJECT" -eq 1 ]; then
   rm -f "$DTMP"
 fi
 
+# --- 3.1 agent-test: seed the repo implementation (only if absent) ----------
+# The dispatcher (.agents/scripts/agent-test) is framework-owned; the per-repo
+# implementation is repo-owned and seeded once from the matching detector's
+# reference (detectors/agent-test/<stack>.sh). Runs on existing installs too.
+if [ ! -f "$DEST/.agents/project/agent-test.sh" ]; then
+  for name in kotlin go node; do
+    det="$SRC/detectors/$name.sh"
+    impl="$SRC/detectors/agent-test/$name.sh"
+    { [ -f "$det" ] && [ -f "$impl" ]; } || continue
+    if sh "$det" "$DEST" >/dev/null 2>&1; then
+      cp "$impl" "$DEST/.agents/project/agent-test.sh"
+      chmod +x "$DEST/.agents/project/agent-test.sh"
+      echo "Seeded .agents/project/agent-test.sh ($name reference — verify its TODOs)."
+      break
+    fi
+  done
+fi
+
 # --- 5. CLAUDE.md ----------------------------------------------------------
 # CLAUDE.md is repo-owned; keep any Claude-specific content, just ensure the import.
 if [ ! -f "$DEST/CLAUDE.md" ]; then
@@ -292,6 +310,10 @@ if [ ! -f "$GITIGNORE" ] || ! grep -qE '^\.agents/tasks/?$' "$GITIGNORE"; then
   { [ -f "$GITIGNORE" ] && [ -s "$GITIGNORE" ] && [ -n "$(tail -c 1 "$GITIGNORE")" ] && echo ""; \
     echo ".agents/tasks/"; } >> "$GITIGNORE"
   echo "Added .agents/tasks/ to .gitignore (local working state)."
+fi
+if ! grep -qE '^\.agents/test-logs/?$' "$GITIGNORE" 2>/dev/null; then
+  echo ".agents/test-logs/" >> "$GITIGNORE"
+  echo "Added .agents/test-logs/ to .gitignore (agent-test run logs)."
 fi
 if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
   mkdir -p "$DEST/docs/tasks"

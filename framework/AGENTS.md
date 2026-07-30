@@ -313,6 +313,13 @@ Sessions run on limited quota. Every agent MUST:
   full diff of relevant files only.
 - Prefer search (grep/glob) and partial reads over reading whole source files; never
   re-read a file already read in this session.
+- **Never dump raw test-runner output into the session** — it is re-read on every
+  later turn. Run tests through `.agents/scripts/agent-test` when the repo implements
+  it (`all` = full suite with compact summary, `one <pattern>` = targeted run,
+  `show <test>` = failure detail on demand; full logs stay on disk). Typical cycle:
+  `all` for a baseline, iterate with `one`/`show` on the failures, `all` again before
+  closing the phase. If the repo has no implementation, run the narrowest target the
+  toolchain allows and filter the output (e.g. `| tail -40`).
 - Not dispatch subagents outside orchestration — each dispatch re-reads the protocol.
 - Keep artifacts factual and compact: no restating the protocol, no summarizing files
   that are already on disk (link them instead).

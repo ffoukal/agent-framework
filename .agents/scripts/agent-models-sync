@@ -42,10 +42,15 @@ role_desc() {
   awk '/^## Role/{getline; gsub(/^[[:space:]]+/,""); if($0!=""){print; exit}}' "$1"
 }
 
+MISSING_TIERS=""
 for f in "$AGENTS"/*.md; do
   [ -f "$f" ] || continue
   agent=$(basename "$f" .md)
-  tier=$(agent_field "$agent" tier);   [ -n "$tier" ]   || tier=standard
+  tier=$(agent_field "$agent" tier)
+  if [ -z "$tier" ]; then
+    tier=standard
+    MISSING_TIERS="$MISSING_TIERS $agent"
+  fi
   effort=$(agent_field "$agent" effort); [ -n "$effort" ] || effort=medium
   cm=$(model_for "$tier" claude-code)
   om=$(model_for "$tier" opencode)
@@ -93,6 +98,15 @@ for dir in "$CLAUDE" "$OPENCODE"; do
 done
 
 echo "Regenerated adapters from config.yml: .claude/agents/ and .opencode/agent/."
+
+if [ -n "$MISSING_TIERS" ]; then
+  echo "" >&2
+  echo "WARN: these agents have NO entry in models.agents of $CFG:" >&2
+  for a in $MISSING_TIERS; do echo "  - $a (defaulted to standard/medium)" >&2; done
+  echo "A silent default can put a cheap role (e.g. orchestrator) on an expensive" >&2
+  echo "model. Add the missing entries — see project-template/config.yml in the" >&2
+  echo "framework for the recommended tiers — then re-run agent-models-sync." >&2
+fi
 
 # --- slash commands: thin wrappers around the canonical prompts -------------
 # Generated for Claude Code (.claude/commands/) and OpenCode (.opencode/command/);

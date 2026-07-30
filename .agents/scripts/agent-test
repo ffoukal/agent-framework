@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# agent-test — compact test runner (dispatcher). Framework-owned; replaced on update.
+#
+# Contract (implemented per-repo by .agents/project/agent-test.sh — repo-owned,
+# never touched by the updater):
+#   agent-test all           run the FULL suite; print ONLY a compact summary
+#                            (counts + failing test ids). Full output goes to a
+#                            log file on disk, never to stdout.
+#   agent-test one <pattern> run a targeted test class/method; same compact output.
+#   agent-test show <test>   print the failure message + trimmed stack for one test.
+#
+# Why: test-runner output dumped into an agent session is re-read on every later
+# turn. Running the suite is cheap; its output entering the context is not. Agents
+# MUST use this instead of calling the test runner directly (see AGENTS.md,
+# Context budget).
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+IMPL="$(dirname "$SCRIPT_DIR")/project/agent-test.sh"
+
+if [ ! -f "$IMPL" ]; then
+  cat >&2 <<'EOF'
+error: no repo implementation at .agents/project/agent-test.sh
+
+This repo has not set up its compact test runner yet. To create it:
+  - Copy a reference implementation from the framework checkout
+    (detectors/agent-test/<stack>.sh, e.g. kotlin.sh for Gradle) to
+    .agents/project/agent-test.sh, make it executable, and adapt the
+    TODO-marked commands to this repo.
+  - Or write your own implementing the contract: all | one <pattern> | show <test>,
+    full runner output to a log file, only a compact summary on stdout.
+Until then, run targeted tests directly and filter their output (e.g. `| tail -40`).
+EOF
+  exit 2
+fi
+
+[ -x "$IMPL" ] || { echo "error: $IMPL exists but is not executable (chmod +x it)" >&2; exit 2; }
+exec "$IMPL" "$@"

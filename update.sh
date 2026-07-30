@@ -194,6 +194,10 @@ if [ ! -f "$GITIGNORE" ] || ! grep -qE '^\.agents/tasks/?$' "$GITIGNORE"; then
     echo "  git rm -r --cached .agents/tasks"
   fi
 fi
+if ! grep -qE '^\.agents/test-logs/?$' "$GITIGNORE" 2>/dev/null; then
+  echo ".agents/test-logs/" >> "$GITIGNORE"
+  echo "Added .agents/test-logs/ to .gitignore (agent-test run logs)."
+fi
 if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
   mkdir -p "$DEST/docs/tasks"
   cat > "$DEST/docs/tasks/INDEX.md" <<'EOF'
@@ -204,6 +208,45 @@ if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
      The intake reads THIS file (never the whole resumes) to recall related work. -->
 EOF
   echo "Seeded docs/tasks/INDEX.md."
+fi
+
+# --- 2.9 config.yml drift: warn about template keys missing locally ---------
+# config.yml is repo-owned and NEVER edited by the updater, so keys added to the
+# template in newer framework versions don't reach existing installs. Diff the key
+# paths (heuristic: 2-space indent, comments/lists ignored) and warn — never edit.
+config_keys() {
+  awk '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*-/ { next }
+    {
+      line = $0; sub(/[[:space:]]*#.*/, "", line)
+      if (line !~ /^[[:space:]]*[A-Za-z0-9_.-]+:/) next
+      match(line, /^[ ]*/); level = int(RLENGTH / 2)
+      key = line; sub(/^[[:space:]]*/, "", key); sub(/:.*/, "", key)
+      path[level] = key
+      full = path[0]; for (l = 1; l <= level; l++) full = full "." path[l]
+      print full
+    }' "$1" | sort -u
+}
+if [ -f "$DEST/.agents/project/config.yml" ]; then
+  MISSING_KEYS=$(comm -23 \
+    <(config_keys "$SRC/project-template/config.yml") \
+    <(config_keys "$DEST/.agents/project/config.yml"))
+  if [ -n "$MISSING_KEYS" ]; then
+    echo ""
+    echo "WARN: .agents/project/config.yml is missing keys the current template has"
+    echo "(the updater never edits this file — add them yourself, then run"
+    echo ".agents/scripts/agent-models-sync):"
+    printf '%s\n' "$MISSING_KEYS" | sed 's/^/  - /'
+  fi
+fi
+
+if [ ! -f "$DEST/.agents/project/agent-test.sh" ]; then
+  echo ""
+  echo "NOTE: no .agents/project/agent-test.sh (compact test runner used by agents)."
+  echo "Re-run install.sh (it seeds a reference implementation for detected stacks)"
+  echo "or copy detectors/agent-test/<stack>.sh from the framework and adapt it."
 fi
 
 # --- 3. regenerate native subagent adapters from updated agents + config ----

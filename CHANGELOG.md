@@ -5,6 +5,23 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Cost guardrails (config drift warnings + compact test runner)
+- **`agent-models-sync` warns on missing `models.agents` entries** instead of
+  silently defaulting to `standard` — a silent default could put the orchestrator
+  on an expensive model in repos installed before a new agent existed.
+- **`update.sh` diffs config keys:** after updating, it compares the key paths of
+  `project-template/config.yml` against the repo's `config.yml` (which the updater
+  never edits) and lists any keys the template has that the repo lacks (e.g.
+  `models.agents.orchestrator`, `context.compact_gate`).
+- **`agent-test` compact test runner:** new framework-owned dispatcher
+  `.agents/scripts/agent-test` (contract: `all` | `one <pattern>` | `show <test>`)
+  delegating to a repo-owned `.agents/project/agent-test.sh`. Full runner output
+  goes to `.agents/test-logs/` (gitignored); only a compact summary (counts +
+  failing test ids) enters the agent's context. `install.sh` seeds a reference
+  implementation for detected stacks (Gradle/Kotlin shipped); AGENTS.md Context
+  budget now mandates using it — raw test-runner dumps in the session are the main
+  cache-read cost driver during implement/debug loops.
+
 ### Single `/task` command + nested orchestration (breaking)
 - **One entry point:** the five slash commands (`/task-new`, `/task-continue`,
   `/task-status`, `/task-step`, `/orchestrate`) are replaced by a single **`/task`**
