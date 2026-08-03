@@ -78,6 +78,43 @@ Agent tool — the topology is enforced, not advisory.
    from disk. Returning early is lossless; a bloated coordinator is not.
 7. Repeat from step 2 — honoring the granularity in the brief (see below).
 
+## Implement phase — one implementer dispatch per plan Task
+
+Phase agents cannot dispatch subagents (Agent tool denied, depth capped at 2). So a
+brief that spans multiple plan Tasks and tells the implementer to "go task-by-task"
+(e.g. quoting `superpowers:subagent-driven-development`) cannot actually get a fresh
+subagent per task — the implementer executes every task in one growing conversation
+instead, which is exactly the unbounded-context growth this topology exists to avoid.
+Fresh-subagent-per-task is only possible at the layer that holds the Agent tool: the
+orchestrator. So when the plan decomposes the current commit boundary into multiple
+numbered Tasks, the orchestrator — not the implementer — runs that loop:
+
+- For each remaining plan Task in the current span (up to the next gate or the
+  `stop-at` boundary), dispatch a **separate, fresh** `implementer` subagent whose
+  brief contains only: that Task's text (extract it from the plan — never hand over
+  the whole plan file), the interfaces/decisions from immediately preceding Tasks that
+  aren't recoverable from `git diff` alone, and whether this Task closes the commit
+  boundary or hands off to the next Task's dispatch.
+- **Mid-boundary Task** (more Tasks remain before the boundary's commit): the
+  implementer leaves the working tree uncommitted and reports completion; the
+  orchestrator appends a one-line note to `progress.md` `## Recent log` (e.g. `Task 7:
+  done, uncommitted — see task.md`) so the next dispatch's brief can point at it
+  without re-pasting history, then loops to the next Task without returning to the
+  caller.
+- **Boundary-closing Task** (the last Task before a commit boundary): the implementer
+  follows the normal commit-boundary rules (fill `## Commit request` +
+  `AWAITING_COMMIT` in `human-gated` mode, or commit in `agent` mode) — this is a gate,
+  so step 3 applies and the orchestrator returns.
+- A plan with no Task decomposition (a `fix`'s Diagnosis, a `chore`'s brief) has
+  nothing to split — dispatch the implementer once for the whole span, as usual.
+- This sub-loop still counts against the context-gate check (step 6): if the
+  orchestrator's own context crosses `context.compact_gate` mid-span, return now — the
+  next `/task` resumes the remaining Tasks from `progress.md`/the plan, at zero cost.
+
+This is strictly an orchestrator-side loop. Never write a phase-agent brief that asks
+the implementer to dispatch subagents itself or to "go task-by-task" on its own — it
+has no Agent tool and will silently degrade to one long dispatch.
+
 ## Granularity (human control point)
 
 The human decides per invocation, and the main session passes it in the brief:

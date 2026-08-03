@@ -57,6 +57,12 @@ Apply the `orchestrating-agents` skill. In short:
    hard gate is pending (`NEEDS_HUMAN` | `BLOCKED` | `AWAITING_COMMIT`, or a plan
    awaiting approval); or the `stop-at` boundary is reached.
 4. Otherwise **dispatch the phase agent as a nested subagent** with:
+   - **`implement` phase, plan with multiple Tasks in the current span:** do not
+     dispatch one implementer for the whole span — apply the orchestrating-agents
+     skill's "Implement phase — one implementer dispatch per plan Task" loop (fresh
+     implementer per Task, mid-boundary hand-offs stay uncommitted, the boundary-
+     closing Task is the gate). This is the only place fresh-subagent-per-task is
+     possible, since phase agents cannot dispatch subagents themselves.
    - the model resolved from `config.yml`
      (`models.agents[agent].tier` → `models.mapping[tier][<cli>]`); on Claude Code this
      is the subagent's `.claude/agents/<agent>.md` model — dispatch by that subagent

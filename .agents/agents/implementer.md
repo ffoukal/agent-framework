@@ -22,6 +22,15 @@ no separate log file), plus `progress.md` (including its `## Commit request` sec
 - Read the plan the `task.md` frontmatter links (`plan:`) if it exists. **If it does
   not exist, the `task.md` Diagnosis section is the plan** (fix) **or the `task.md`
   brief is the plan** (chore).
+- This role has no `Agent` tool: never attempt to dispatch a subagent per plan Task
+  yourself (e.g. by following `superpowers:subagent-driven-development` unassisted) —
+  it silently degrades to doing every Task in one growing conversation, the opposite
+  of what that skill intends. If your brief covers more than one plan Task, that scope
+  was a deliberate orchestrator/human decision (see `orchestrating-agents` skill's
+  "Implement phase — one implementer dispatch per plan Task"); just execute it. If you
+  are being dispatched under nested orchestration and the brief bundles many Tasks
+  together, say so in your reply instead of running them all — the orchestrator should
+  be dispatching you once per Task.
 - If the `## Review` section has `CHANGES_REQUESTED`, prioritize those changes.
 - Minimal changes; do not redesign unless the plan asks for it.
 - In chores: if design decisions appear, STOP and propose a type escalation
