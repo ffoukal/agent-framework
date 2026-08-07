@@ -295,10 +295,10 @@ else
   echo "      hook into $SETTINGS manually (see framework README)."
 fi
 
-# --- 7.1 generate native subagent adapters (+ Codex recipe) ----------------
+# --- 7.1 generate native subagent adapters ----------------------------------
 # The installed agent-models-sync script is the single generator; the human re-runs it
-# after editing config.yml. It writes .claude/agents/ + .opencode/agent/ and prints the
-# Codex per-user profile recipe.
+# after editing config.yml. It writes .claude/agents/ (Claude Code is currently the
+# only actively maintained CLI target — see AGENTS.md "Agent model tiers").
 echo ""
 "$DEST/.agents/scripts/agent-models-sync"
 
@@ -352,7 +352,7 @@ Files touched:
   .agents/skills/ (framework-managed skills; repo skills preserved)
   .agents/project/ $([ "$NEW_PROJECT" -eq 1 ] && echo '(new, with detector drafts)' || echo '(preserved)')
   .claude/settings.json, .claude/skills -> ../.agents/skills
-  .claude/agents/, .opencode/agent/ (generated subagent adapters for orchestration)
+  .claude/agents/, .claude/commands/ (generated subagent adapters + slash commands)
   .gitignore (.agents/tasks/ entry), docs/tasks/INDEX.md (task resume index)
 EOF
 

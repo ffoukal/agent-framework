@@ -17,6 +17,13 @@ plan: null               # docs/plans/YYYY-MM-DD-<task-name>.md, if any
      Distilled from task.md: only what stays relevant AFTER the task is done — not
      the phase-by-phase story, not agent conversations.
 
+     Problem/Solution describe the FINAL, as-shipped state only — write them as if
+     the task had gone straight through in one pass. Do NOT narrate: mid-task scope
+     changes ("Evolution & human decisions"), review rounds or findings that got
+     fixed, or abandoned approaches. If a scope change left a genuinely useful
+     constraint or gotcha for future work, that belongs in Notes, stated as a fact
+     about the system — not as "originally we tried X, then changed to Y".
+
      `touched` rules — it answers "where would you look first to understand this
      change?", NOT "what did the diff touch" (git already knows that):
      - max 5 entries; prefer directories/modules over files

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# agent-models-sync — regenerate native subagent adapters from config.yml.
+# agent-models-sync — regenerate native Claude Code subagent adapters from config.yml.
 # Run this after editing .agents/project/config.yml (models.agents / models.mapping):
-# it rewrites .claude/agents/ and .opencode/agent/ and prints the Codex profile recipe.
+# it rewrites .claude/agents/. Claude Code is the only actively maintained CLI target
+# right now; OpenCode/Codex mapping columns stay in config.yml for a future re-enable
+# but are no longer generated (see AGENTS.md "Agent model tiers").
 # install.sh / update.sh call this same script, so there is one generator.
 set -eu
 
 case "${1:-}" in
   -h|--help)
     echo "Usage: agent-models-sync"
-    echo "Regenerates .claude/agents/ and .opencode/agent/ adapters from"
-    echo ".agents/project/config.yml, and prints the Codex profile recipe."
+    echo "Regenerates .claude/agents/ adapters from .agents/project/config.yml."
     echo "Run it after editing config.yml tiers/mapping."
     exit 0 ;;
 esac
@@ -24,8 +25,7 @@ CFG="$AGENTS_DIR/project/config.yml"
 [ -f "$CFG" ]   || { echo "error: $CFG not found" >&2; exit 1; }
 
 CLAUDE="$DEST/.claude/agents"
-OPENCODE="$DEST/.opencode/agent"
-mkdir -p "$CLAUDE" "$OPENCODE"
+mkdir -p "$CLAUDE"
 
 # tier|effort of an agent from models.agents inline object
 agent_field() {
@@ -53,7 +53,6 @@ for f in "$AGENTS"/*.md; do
   fi
   effort=$(agent_field "$agent" effort); [ -n "$effort" ] || effort=medium
   cm=$(model_for "$tier" claude-code)
-  om=$(model_for "$tier" opencode)
   desc=$(role_desc "$f"); [ -n "$desc" ] || desc="$agent agent"
   gen="<!-- GENERATED — do not edit; edit .agents/agents/$agent.md and config.yml, then run agent-models-sync -->"
 
@@ -72,32 +71,31 @@ for f in "$AGENTS"/*.md; do
     echo "Role: see \`.agents/agents/$agent.md\`. Protocol: follow \`AGENTS.md\`."
     echo "Tier: $tier · effort: $effort."
   } > "$CLAUDE/$agent.md"
-
-  {
-    echo "---"
-    echo "description: $desc (see .agents/agents/$agent.md)"
-    echo "model: ${om:-<provider/model>}"
-    echo "---"
-    echo "$gen"
-    echo ""
-    echo "Role: see \`.agents/agents/$agent.md\`. Protocol: follow \`AGENTS.md\`."
-    echo "Tier: $tier · effort: $effort."
-  } > "$OPENCODE/$agent.md"
 done
 
 # Prune generated adapters whose agent no longer exists (e.g. a renamed/removed role).
 # Only removes files carrying the GENERATED marker — never user-authored subagents.
-for dir in "$CLAUDE" "$OPENCODE"; do
-  for a in "$dir"/*.md; do
-    [ -f "$a" ] || continue
-    name=$(basename "$a" .md)
-    if [ ! -f "$AGENTS/$name.md" ] && grep -q 'GENERATED — do not edit' "$a"; then
-      rm -f "$a"
-    fi
-  done
+for a in "$CLAUDE"/*.md; do
+  [ -f "$a" ] || continue
+  name=$(basename "$a" .md)
+  if [ ! -f "$AGENTS/$name.md" ] && grep -q 'GENERATED — do not edit' "$a"; then
+    rm -f "$a"
+  fi
 done
 
-echo "Regenerated adapters from config.yml: .claude/agents/ and .opencode/agent/."
+# Remove any adapters previously generated for CLIs we no longer maintain (OpenCode,
+# Codex). Only removes GENERATED-marked files — never user-authored content.
+for dir in "$DEST/.opencode/agent" "$DEST/.opencode/command"; do
+  [ -d "$dir" ] || continue
+  for a in "$dir"/*.md; do
+    [ -f "$a" ] || continue
+    grep -q 'GENERATED — do not edit' "$a" && rm -f "$a"
+  done
+  rmdir "$dir" 2>/dev/null || true
+done
+rmdir "$DEST/.opencode" 2>/dev/null || true
+
+echo "Regenerated adapters from config.yml: .claude/agents/ (Claude Code only — see AGENTS.md)."
 
 if [ -n "$MISSING_TIERS" ]; then
   echo "" >&2
@@ -109,16 +107,14 @@ if [ -n "$MISSING_TIERS" ]; then
 fi
 
 # --- slash commands: thin wrappers around the canonical prompts -------------
-# Generated for Claude Code (.claude/commands/) and OpenCode (.opencode/command/);
-# Codex users get a per-user prompts recipe printed below. Same GENERATED marker
+# Generated for Claude Code (.claude/commands/) only right now. Same GENERATED marker
 # and prune rules as the agent adapters.
 CLAUDE_CMDS="$DEST/.claude/commands"
-OPENCODE_CMDS="$DEST/.opencode/command"
-mkdir -p "$CLAUDE_CMDS" "$OPENCODE_CMDS"
+mkdir -p "$CLAUDE_CMDS"
 
 emit_command() {
   name="$1"; desc="$2"; body="$3"
-  for dir in "$CLAUDE_CMDS" "$OPENCODE_CMDS"; do
+  for dir in "$CLAUDE_CMDS"; do
     {
       echo "---"
       echo "description: $desc"
@@ -143,29 +139,15 @@ Execution model (all routes except `status` and `change`): if `.agents/current-t
 
 # Prune generated commands whose definition no longer exists upstream (this removes
 # the pre-1.x commands: task-new, task-continue, task-status, task-step, orchestrate).
-for dir in "$CLAUDE_CMDS" "$OPENCODE_CMDS"; do
-  for c in "$dir"/*.md; do
-    [ -f "$c" ] || continue
-    name=$(basename "$c" .md)
-    case "$name" in task) continue ;; esac
-    grep -q 'GENERATED — do not edit' "$c" && rm -f "$c"
-  done
+for c in "$CLAUDE_CMDS"/*.md; do
+  [ -f "$c" ] || continue
+  name=$(basename "$c" .md)
+  case "$name" in task) continue ;; esac
+  grep -q 'GENERATED — do not edit' "$c" && rm -f "$c"
 done
 
-echo "Regenerated slash commands: .claude/commands/ and .opencode/command/ (task — with step | status | change | stop-after routes)."
-
-# Codex config is per-user (not per-repo) — print the recipe to apply by hand.
+echo "Regenerated slash commands: .claude/commands/ (task — with step | status | change | stop-after routes)."
 echo ""
-echo "Codex (per-user) — add/update these profiles in ~/.codex/config.toml:"
-echo "----------------------------------------------------------------------"
-printf '[profiles.reasoning]\nmodel = "%s"\nmodel_reasoning_effort = "high"\n\n'   "$(model_for reasoning codex)"
-printf '[profiles.standard]\nmodel = "%s"\nmodel_reasoning_effort = "medium"\n\n' "$(model_for standard codex)"
-printf '[profiles.fast]\nmodel = "%s"\nmodel_reasoning_effort = "low"\n'          "$(model_for fast codex)"
-echo "----------------------------------------------------------------------"
-
-echo ""
-echo "Codex (per-user) — optional custom prompts in ~/.codex/prompts/:"
-echo "----------------------------------------------------------------------"
-echo "task.md: Advance the current task using the persistent agent system (no subagent"
-echo "         dispatch on Codex: apply the orchestrating-agents skill manual fallback)."
-echo "----------------------------------------------------------------------"
+echo "Note: OpenCode/Codex adapter generation is currently paused (Claude Code is the"
+echo "only actively maintained CLI). The mapping columns stay in config.yml — re-enable"
+echo "by restoring the OpenCode/Codex generation block in this script if needed again."

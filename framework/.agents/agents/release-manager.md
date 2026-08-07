@@ -42,6 +42,11 @@ PRs are still pending merge, set `outcome: needs-follow-up` in the resume frontm
 and note the pending PRs — the human flips it to `merged` (or asks any agent to) once
 the stack lands.
 
+Problem/Solution in the resume describe the task as finished, not as lived: no
+"Evolution & human decisions" scope-change narrative, no review-round history. Follow
+`templates/resume.md`'s comment on this — the Release notes' own Problem/Solution
+(above) are written the same way for the same reason.
+
 ## Stop conditions
 - Release notes + resume written → `## Next` tells the human to open/merge PRs (push
   and merge are human). `status: DONE`.

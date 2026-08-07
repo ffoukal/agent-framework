@@ -88,13 +88,19 @@ agent's tier from `models.agents`, the model from `models.mapping` (for the CLI 
 use), and includes both in "Agent to use". This drives the manual flow and any CLI
 without subagent dispatch.
 
-For **orchestration** (see below), the installer generates native per-CLI adapters
-(`.claude/agents/`, `.opencode/agent/`) carrying the resolved `model:` per agent, plus a
-Codex `config.toml` profile recipe (one per tier). Those adapters are what let each CLI
-route the resolved model to a **dispatched subagent**. They are generated, not source:
-do not edit them — edit `config.yml` (or `.agents/agents/`) and run
-`.agents/scripts/agent-models-sync` to regenerate them (install/update run it too). If
-`config.yml` is newer than the adapters, `agent-task-check` warns you to sync.
+For **orchestration** (see below), the installer generates native Claude Code adapters
+(`.claude/agents/`) carrying the resolved `model:` per agent. Those adapters are what
+let Claude Code route the resolved model to a **dispatched subagent**. They are
+generated, not source: do not edit them — edit `config.yml` (or `.agents/agents/`) and
+run `.agents/scripts/agent-models-sync` to regenerate them (install/update run it too).
+If `config.yml` is newer than the adapters, `agent-task-check` warns you to sync.
+
+Claude Code is currently the only actively maintained CLI target: `agent-models-sync`
+only generates `.claude/agents/` and `.claude/commands/`. The `models.mapping` columns
+for `opencode`/`codex` stay in `config.yml` (protocol and `progress.md` "Agent to use"
+entries remain CLI-agnostic, and any CLI can still follow the manual flow by reading
+`.agents/agents/*.md` + `config.yml` directly) but their adapter generation is paused —
+re-enable it in `agent-models-sync` if the team picks those CLIs back up.
 
 ---
 
@@ -261,6 +267,8 @@ isolated brief — never its own history; ≤10-line replies). Phase-agent adapt
 the Agent tool and the installer caps spawn depth at 2
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` in `.claude/settings.json`), so the topology
 cannot silently degrade. The main session pays only a dispatch and a short report.
+This subagent-dispatch topology is Claude Code-specific; other CLIs use the manual
+flow (see Agent model tiers above).
 
 **Gate = return.** At hard gates (`NEEDS_HUMAN` | `BLOCKED` | `AWAITING_COMMIT`, plan
 approval), interactive phases, and the human's stop boundary, the orchestrator writes

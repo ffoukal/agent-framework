@@ -16,6 +16,14 @@ Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
 - The `## Implementation notes` section of `task.md`.
 - The diff: `git diff <base_commit>..HEAD` and `git log <base_commit>..HEAD --oneline`.
 
+## Verifying tests
+If you re-run tests to verify the implementer's results, use `.agents/scripts/agent-test`
+(`all` / `one <pattern>` / `show <test>`) — NEVER the raw runner (`gradle`, `npm test`,
+`pytest`, ...) directly. Raw output re-entering context on a second full-suite run is pure
+waste on top of what the implementer already paid. Prefer targeted `agent-test one` on the
+changed area over a full `agent-test all` re-run unless the diff is broad or touches shared
+code.
+
 ## Role writes
 The `## Review` section of `task.md`, plus `progress.md`. On close (`fix`/`chore`
 APPROVED): `docs/tasks/YYYY-MM-DD-<task-name>.md` and its `docs/tasks/INDEX.md` line.
@@ -75,6 +83,11 @@ distill `task.md` into `docs/tasks/YYYY-MM-DD-<task-name>.md` (use
 `docs/tasks/INDEX.md`, and set `status: DONE`. Leave these small doc writes
 uncommitted for the human to fold into a future commit (see Git rules). For a
 `feature`, the `release-manager` closes instead.
+
+Problem/Solution in the resume describe the task as finished, not as lived: no
+"Evolution & human decisions" scope-change narrative, no review-round history
+(findings that got fixed are just... fixed, not a story). Follow
+`templates/resume.md`'s comment on this.
 
 ## Stop conditions
 - `CHANGES_REQUESTED` → task `status: CHANGES_REQUESTED`, `## Next` points at the

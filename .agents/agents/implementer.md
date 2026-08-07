@@ -35,9 +35,15 @@ no separate log file), plus `progress.md` (including its `## Commit request` sec
 - Minimal changes; do not redesign unless the plan asks for it.
 - In chores: if design decisions appear, STOP and propose a type escalation
   (`chore → fix` / `chore → feature`). Do not decide design silently.
-- Run the tests listed in the plan/diagnosis; record commands and outcomes under
-  `## Implementation notes` in `task.md`. Record only non-trivial decisions — not a
-  list of what changed (the diff shows that).
+- Run tests through `.agents/scripts/agent-test` (`all` / `one <pattern>` / `show
+  <test>`) — NEVER call the underlying test runner (`gradle`, `npm test`, `pytest`,
+  ...) directly. Raw runner output re-enters context on every later turn and is the
+  single biggest cost driver in this pipeline; `agent-test` keeps the full log on disk
+  and returns only a compact summary. If the repo has no `.agents/project/agent-test.sh`
+  yet, say so and stop rather than falling back to the raw runner. Record the
+  `agent-test` commands and outcomes under `## Implementation notes` in `task.md`.
+  Record only non-trivial decisions — not a list of what changed (the diff shows
+  that).
 - On closing each committable unit (defined by the plan's Commit/PR boundaries, or the
   phase end):
   - `human-gated` mode: fill the `## Commit request` section of `progress.md`
