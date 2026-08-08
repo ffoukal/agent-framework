@@ -131,6 +131,22 @@ re-enable it in `agent-models-sync` if the team picks those CLIs back up.
   (message + SHA) in the `## Recent log` of `progress.md` immediately after. The
   `## Commit request` section is not used.
 
+### Stacked PRs (`gh stack`)
+
+If a repo uses GitHub's stacked-PR workflow via the `gh-stack` CLI extension
+(`gh extension install github/gh-stack`; `.agents/project/project.md` notes whether a
+repo uses it), the "never push/rebase" rule above extends to it verbatim: `gh stack
+rebase`, `gh stack push`, `gh stack submit`, and `gh stack sync` all wrap `git
+push`/`git rebase` under the hood, so they stay human-only in every commit mode, same
+as plain `git push`/`git rebase`. Agents MAY run read-only stack commands (`gh stack
+list`, `gh stack checkout <branch>`) to inspect or navigate the stack.
+
+In a stacked layout each layer branch bases on the layer below it, not on the trunk
+branch directly (`main <- layer-1 <- layer-2 <- ...`), so the human runs `gh stack
+push`/`submit` once per batch of local commits instead of pushing each branch
+individually — see `pr-splitter.md` for how the `pr-splitter` builds and maintains
+such a stack.
+
 ### Commit authorship (universal rule, both modes)
 
 Commit messages MUST NOT include AI co-authorship trailers or attribution lines.
