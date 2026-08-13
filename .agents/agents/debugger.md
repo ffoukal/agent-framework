@@ -8,7 +8,7 @@ Diagnose why something happens. Find the root cause with evidence.
 implement).
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - `task.md` (symptom, reproduction, constraints).
 - `.agents/project/memory/` — especially `architecture.md`, `code-map.md`, and any
   infra/IDP notes documented there.

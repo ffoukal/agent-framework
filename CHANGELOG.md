@@ -5,6 +5,29 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Protocol token tax cut (Claude Code-first)
+- **`AGENTS.md` shrunk from ~20K to ~3K chars.** Claude Code auto-injects the project
+  `CLAUDE.md` into every dispatched custom subagent unconditionally (confirmed against
+  Claude Code docs), so the old always-on `AGENTS.md` was paid in full by every
+  session and every phase-agent dispatch regardless of relevance. It now holds only
+  what's truly universal (repo-is-memory, gitignore/durable-doc layout, non-negotiable
+  git rules, language rule); everything else moved to a new **`task-protocol`** skill
+  (framework-managed, `.agents/skills/task-protocol/`) that loads only when a pipeline
+  role or `/task` actually invokes it.
+- **No redundant `project.md`/`config.yml` re-reads on nested dispatch:** the
+  orchestrator's subagent brief now inlines `commits.mode` alongside the resolved
+  model/effort, so dispatched phase agents skip their own config reads and trust the
+  brief instead.
+- **Orchestrator short-circuit for short pipelines:** `chore`/`fix` (`implement →
+  review`, ≤2 phases) no longer spin up the `orchestrator` subagent — `/task`
+  dispatches `implementer`/`reviewer` directly from the main session and runs the
+  dispatch/integrate loop itself. `feature` and multi-phase `spike`/`debug` keep the
+  orchestrator, where the isolation and cheap-coordination-model benefit earns its
+  cost.
+- Net effect: a `chore`'s protocol overhead (independent of the actual diff/content)
+  drops roughly in half, and non-task sessions in a framework-installed repo pay
+  near-zero protocol tax instead of ~5K tokens.
+
 ### Cost guardrails (config drift warnings + compact test runner)
 - **`agent-models-sync` warns on missing `models.agents` entries** instead of
   silently defaulting to `standard` — a silent default could put the orchestrator

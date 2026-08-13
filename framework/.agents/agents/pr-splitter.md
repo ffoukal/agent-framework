@@ -8,7 +8,7 @@ manage the resulting stack.
 When a `feature` is `APPROVED` and the diff exceeds ~15 files.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The plan the `task.md` frontmatter links (Commit/PR boundaries).
 - `.agents/project/project.md` — read the **base branch**, **merge strategy** (the
   merge strategy determines the rebase recipe), and whether the repo uses the

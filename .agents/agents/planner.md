@@ -8,7 +8,7 @@ Turn an approved spec (feature) into an implementable, verifiable plan.
 `fix` when a `fix → feature` escalation happens.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - `task.md` and the approved **spec** its frontmatter links (in `docs/specs/`) — the
   source of truth for a feature.
 - `.agents/project/project.md` and `.agents/project/memory/` (architecture, code-map,

@@ -8,7 +8,7 @@ Implement the plan, the fix, or the changes requested by review. Minimal changes
 returns `CHANGES_REQUESTED`.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The plan source (see rules below).
 - `.agents/project/memory/` — especially `code-map.md`, `testing.md`, `conventions.md`.
 - The `## Review` section of `task.md` if a review round already happened.

@@ -18,7 +18,8 @@ The human's entry point is **`/task`** in the main session. Three layers:
 
 - **Main session** (any model — it pays almost nothing): routes `/task`, holds the
   interactive phases (`intake`, `specifier`) and `/task change`, dispatches the
-  orchestrator, relays its report.
+  orchestrator (or a phase agent directly — see short-circuit below), relays its
+  report.
 - **Orchestrator** (layer-1 subagent, cheap model fixed by its generated adapter):
   runs the loop below. It cannot talk to the human — a gate means *write state to
   disk and return*. Each `/task` gets a fresh orchestrator that resumes from disk.
@@ -30,6 +31,21 @@ This keeps coordination context short (a gate ends the orchestrator) and cheap (
 model never inherits from the session). The spawn depth is capped at 2 by the
 installer (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), and phase-agent adapters deny the
 Agent tool — the topology is enforced, not advisory.
+
+### Short-circuit: skip the orchestrator for short pipelines
+
+`chore`/`fix` pipelines are at most two phases (`implement → review`). Spinning up an
+orchestrator subagent just to decide "dispatch implementer, then reviewer" costs a
+whole extra subagent round-trip (its own protocol load, `project.md`/`config.yml`
+reads, dispatch decision, `progress.md` write) for a decision cheap enough to make
+directly. So: if `progress.md` frontmatter `type` is `chore` or `fix`, the entry point
+(main session, or the manual flow) dispatches the current phase's agent **directly** —
+layer 1, no orchestrator — and runs the same loop (dispatch → integrate → repeat until
+a gate) itself. `feature` and multi-phase `spike`/`debug` pipelines keep the
+orchestrator; the isolation and cheap-coordination-model benefit earns its cost there.
+This does mean chore/fix coordination runs on the dispatcher's own model rather than
+the orchestrator's cheap tier — a deliberate trade given the pipeline is only 1–2
+dispatches.
 
 ## Core principles
 
@@ -63,9 +79,12 @@ Agent tool — the topology is enforced, not advisory.
      `.opencode/agent/<agent>.md` model applies.
    - **Effort** is advisory: fold `models.agents[<agent>].effort` into the brief
      (e.g. "think harder for a high-effort review"). `model` is the routed knob.
-   - **Brief (isolated):** task id, phase, and the "Read first / Do / Stop when /
-     Expected writes" from the `## Next` section of `progress.md`. Do not paste your
-     history. Require a ≤10-line reply.
+   - **Brief (isolated):** task id, phase, `commits.mode`, and the "Read first / Do /
+     Stop when / Expected writes" from the `## Next` section of `progress.md`. Do not
+     paste your history. Require a ≤10-line reply. Because the brief inlines
+     `commits.mode` and the resolved model/effort, the dispatched agent skips its own
+     `project.md`/`config.yml` reads (task-protocol skill's startup step 0) — it
+     trusts the brief instead.
    - **Instruction:** follow the normal shutdown protocol before returning.
 5. **Integrate:** re-read `progress.md`.
    - verdict `CHANGES_REQUESTED` → next agent is `implementer` (loop);

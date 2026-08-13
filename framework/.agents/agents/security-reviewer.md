@@ -8,7 +8,7 @@ Optional phase, added to the pipeline by the planner or the human when the task 
 sensitive surfaces (auth, secrets, PII, infra, migrations, permissions).
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The plan source and the `## Implementation notes` section of `task.md`.
 - The diff: `git diff <base_commit>..HEAD`.
 - `.agents/project/memory/` for infra/domain context.

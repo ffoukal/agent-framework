@@ -9,7 +9,7 @@ First phase of a `feature` pipeline. Not used for `fix` (its `task.md` Diagnosis
 spec-equivalent), `debug`, `chore`, or `spike`.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - `task.md` (goal, constraints, out of scope, linked resumes) and any spec the intake
   already ingested.
 - `.agents/project/project.md` and `.agents/project/memory/` (architecture, domain,

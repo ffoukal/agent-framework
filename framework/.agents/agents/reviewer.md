@@ -8,7 +8,7 @@ For `fix`/`chore`, also **close the task** on `APPROVED` (write the durable resu
 `review` phase of `feature`, `fix`, and `chore` pipelines.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The plan source: the `docs/plans/` plan the `task.md` frontmatter links, else the
   `task.md` Diagnosis section (fix), else the `task.md` brief (chore).
 - For a `feature`, the approved **spec** the frontmatter links (for the

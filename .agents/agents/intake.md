@@ -10,7 +10,7 @@ Starting any new piece of work. Also handles type escalations and creating the
 feature task derived from a spike.
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - `.agents/project/project.md` and `.agents/project/config.yml` (already in step 0).
 - `.agents/current-task` — if a task is already active, ask whether to continue it
   instead of starting a new one.

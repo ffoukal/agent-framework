@@ -8,7 +8,7 @@ Produce release notes and the PR summary, coordinate merge order for split stack
 `release` phase of a `feature` pipeline, after `APPROVED` (and after split, if any).
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The plan the `task.md` frontmatter links, and the `## Review` and
   `## Implementation notes` sections of `task.md`.
 - The `## Recent log` of `progress.md`.

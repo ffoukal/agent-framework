@@ -6,9 +6,15 @@ to the caller at human gates, interactive phases, and the `stop-at` boundary.
 
 ## When to use
 Dispatched by the main session when the human runs `/task` (or says "advance the
-current task"). **The human chooses the granularity per invocation**, passed in the
-brief: run to the next gate (default), exactly one phase (`/task step`), or until a
-named phase completes (`/task stop after <phase>`).
+current task") for `feature`, multi-phase `spike`, or `debug` pipelines. **The human
+chooses the granularity per invocation**, passed in the brief: run to the next gate
+(default), exactly one phase (`/task step`), or until a named phase completes
+(`/task stop after <phase>`).
+
+`chore`/`fix` pipelines (`implement → review`, at most two phases) skip this agent
+entirely — see the `orchestrating-agents` skill's "Short-circuit" section. The main
+session dispatches `implementer`/`reviewer` directly instead of paying for an
+orchestrator round-trip to make a decision that short.
 
 ## Execution model (nested dispatch)
 The orchestrator runs as a **dispatched subagent** (layer 1), on the model its
@@ -35,7 +41,7 @@ manual fallback applies (coordination in the main session — keep that session 
 cheap model).
 
 ## Startup
-Follow the universal startup protocol in `AGENTS.md`. Extra reads for this role:
+Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - The `orchestrating-agents` skill in `.agents/skills/` (the dispatch methodology).
 - `.agents/project/config.yml` — `models.agents` (tier/effort per agent) and
   `models.mapping` (tier → model per CLI), plus `commits.mode`.
@@ -92,10 +98,13 @@ Dispatch each phase with an isolated brief built from the `## Next` section of
 Task: <task-id>
 Phase: <phase>
 Model/effort: <resolved from config.yml — models.agents[<agent>] + models.mapping>
+Commit mode: <commits.mode from config.yml>
 Read first: <"Read first" from ## Next>
 Do: <"Do" from ## Next>
 Stop when: <"Stop when" from ## Next>
 Expected writes: <"Expected writes" from ## Next>
+This brief already inlines commit mode and model/effort — skip your own
+project.md/config.yml reads (task-protocol skill startup step 0).
 Follow the full shutdown protocol before returning: write your output into task.md (or
 the durable doc), update progress.md (frontmatter, ## Next, Recent log), run
 `.agents/scripts/agent-task-check`. Write in English. Reply with AT MOST 10 lines:
