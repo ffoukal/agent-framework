@@ -6,6 +6,15 @@ tags: []                 # 3-6 kebab-case topical tags, e.g. [auth, session, red
 touched: []              # max 5 entries — see rules below
 related: []              # ids of related past tasks (from the intake recall step)
 outcome: merged          # merged | done | abandoned | needs-follow-up
+harness_gap: none        # none | spec | context | env | feedback | state
+                         # If this task went sideways, which harness layer let it:
+                         #   spec     the brief/spec was ambiguous or wrong
+                         #   context  the knowledge existed, but not in the repo
+                         #   env      toolchain/setup burned the budget
+                         #   feedback nothing could prove done — tests/verify missing
+                         #   state    continuity lost between phases or sessions
+                         # One word, no prose. Grepping this field across resumes is
+                         # how the bottleneck layer becomes visible instead of guessed.
 spec: null               # docs/specs/YYYY-MM-DD-<task-name>.md, if any
 plan: null               # docs/plans/YYYY-MM-DD-<task-name>.md, if any
 ---

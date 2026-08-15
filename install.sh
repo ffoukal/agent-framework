@@ -213,6 +213,28 @@ if [ ! -f "$DEST/.agents/project/agent-test.sh" ]; then
   done
 fi
 
+# --- 3.2 agent-verify: seed the repo implementation (only if absent) --------
+# Same split as agent-test: framework-owned dispatcher, repo-owned implementation.
+# Stack-specific reference if one matches, generic otherwise — every repo gets a file
+# with TODOs rather than nothing, because "no verify script" degrades silently.
+if [ ! -f "$DEST/.agents/project/agent-verify.sh" ]; then
+  seeded=""
+  for name in kotlin go node; do
+    det="$SRC/detectors/$name.sh"
+    impl="$SRC/detectors/agent-verify/$name.sh"
+    { [ -f "$det" ] && [ -f "$impl" ]; } || continue
+    if sh "$det" "$DEST" >/dev/null 2>&1; then seeded="$impl"; label="$name"; break; fi
+  done
+  if [ -z "$seeded" ] && [ -f "$SRC/detectors/agent-verify/generic.sh" ]; then
+    seeded="$SRC/detectors/agent-verify/generic.sh"; label="generic"
+  fi
+  if [ -n "$seeded" ]; then
+    cp "$seeded" "$DEST/.agents/project/agent-verify.sh"
+    chmod +x "$DEST/.agents/project/agent-verify.sh"
+    echo "Seeded .agents/project/agent-verify.sh ($label reference — fill its TODOs)."
+  fi
+fi
+
 # --- 5. CLAUDE.md ----------------------------------------------------------
 # CLAUDE.md is repo-owned; keep any Claude-specific content, just ensure the import.
 if [ ! -f "$DEST/CLAUDE.md" ]; then
@@ -315,8 +337,8 @@ if ! grep -qE '^\.agents/test-logs/?$' "$GITIGNORE" 2>/dev/null; then
   echo ".agents/test-logs/" >> "$GITIGNORE"
   echo "Added .agents/test-logs/ to .gitignore (agent-test run logs)."
 fi
+mkdir -p "$DEST/docs/specs" "$DEST/docs/plans" "$DEST/docs/tasks"
 if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
-  mkdir -p "$DEST/docs/tasks"
   cat > "$DEST/docs/tasks/INDEX.md" <<'EOF'
 # Task index
 
@@ -376,3 +398,9 @@ Suggested first task (create it via the intake):
   "Start a new task using the persistent agent system."
   Goal: an agent walks the repo and completes/corrects .agents/project/.
 EOF
+
+# --- 10. readiness report ---------------------------------------------------
+# The environment subsystem is the one an agent cannot bootstrap for itself. Show the
+# remaining gaps now, while the human is here, instead of degrading quietly per task.
+echo ""
+"$DEST/.agents/scripts/agent-env-check" || true

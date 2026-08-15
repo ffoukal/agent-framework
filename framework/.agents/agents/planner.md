@@ -25,9 +25,15 @@ Write the plan with these sections:
 - **Goal** (from the spec)
 - **Context used** (cite the spec and which memory/code files informed the plan)
 - **Assumptions**
-- **Tasks** with checkboxes
+- **Tasks** — the feature list, in the exact shape of `templates/plan.md`: one
+  `### Tn` block with `verify:` (a runnable command, normally
+  `.agents/scripts/agent-test one <pattern>` or `.agents/scripts/agent-verify e2e`),
+  `state: todo`, `evidence: —`. Size each Task to finish in ONE implementer dispatch.
+  A Task whose `verify` you cannot write is not specified well enough to plan — fix
+  the Task, don't hand the ambiguity to the implementer.
 - **Files likely to change**
-- **Tests to run**
+- **Verification level** — `quick | full | e2e` for the task as a whole. Choose `e2e`
+  whenever the change crosses a layer boundary.
 - **Risks**
 - **Acceptance criteria** — trace to the spec's acceptance criteria (the reviewer
   verifies each); for a `fix` (no spec), derive them from the `task.md` Diagnosis.

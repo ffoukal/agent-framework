@@ -21,6 +21,13 @@ Agents run tests through `.agents/scripts/agent-test` (`all` | `one <pattern>` |
 repo implementation lives in `.agents/project/agent-test.sh` (repo-owned; the
 installer seeds a reference for detected stacks — verify its TODOs).
 
+Agents gate "done" through `.agents/scripts/agent-verify`
+(`quick` | `full` | `e2e` | `clean`), implemented by `.agents/project/agent-verify.sh`
+(repo-owned, seeded with TODOs). Fill its `build` / `lint` / `typecheck` / `boot`
+functions — an unfilled level silently reports SKIP and proves nothing.
+Recurring review findings become executable rules in `.agents/project/checks.sh`,
+which `agent-verify quick` runs.
+
 ## Project-specific rules
 <!-- TODO: any rule agents must obey that is NOT a config flag. There are no per-repo
      agent overrides in v1 — put such rules here; agents read them in startup step 0.

@@ -74,13 +74,39 @@ Map the findings to the task **verdict** (write it exactly):
 - else any `high` → **CHANGES_REQUESTED**
 - else (only `medium`/`low`/`info`) → **APPROVED** (note the medium/low items)
 
+### Runtime evidence gate (before any APPROVED)
+
+Reading a diff cannot tell you the app still runs — that is the one failure mode
+review is structurally blind to. So `APPROVED` requires a line in the `## Review`
+section naming the level that ran and its result, e.g.
+`Verified: agent-verify e2e — PASS`. Rules:
+
+- The plan's `## Verification level` is the minimum. If the diff crosses a layer
+  boundary and only `full` ran, that is a `high` finding → `CHANGES_REQUESTED`.
+- If the implementer's evidence is present and recent, trust it; only re-run when the
+  diff moved since, or the evidence is vague. Re-running a passing suite to feel
+  thorough is pure cost.
+- No `agent-verify.sh` in the repo → write `Verified: UNAVAILABLE (no agent-verify.sh)`
+  and cap the verdict at `CHANGES_REQUESTED` **only** if the change is risky enough to
+  need runtime proof; otherwise approve and record it as an `info` harness gap.
+
+### Promotion (third strike)
+
+If a finding is the same kind you have already raised in two earlier rounds or tasks,
+do not just write it again — propose one line for `.agents/project/checks.sh` (run by
+`agent-verify quick`) in the finding itself. A rule enforced by a script costs nothing
+per task; a rule an agent must remember costs tokens forever and still gets missed.
+
 ### Task close (fix/chore, on APPROVED)
 
 Immediately after emitting `APPROVED` for a `fix` or `chore`, close the task:
 distill `task.md` into `docs/tasks/YYYY-MM-DD-<task-name>.md` (use
 `templates/resume.md`; frontmatter `tags`, `touched` ≤5 per the template's rules,
-`related`, `outcome`, spec/plan links), append the task's one-line entry to
-`docs/tasks/INDEX.md`, and set `status: DONE`. Leave these small doc writes
+`related`, `outcome`, `harness_gap`, spec/plan links), append the task's one-line entry
+to `docs/tasks/INDEX.md`, and set `status: DONE`. Set `harness_gap` honestly — if the
+task went sideways, name the layer that let it (`spec|context|env|feedback|state`);
+`none` if it ran clean. It is one word, and across resumes it is the only evidence of
+which part of the harness actually costs the team time. Leave these small doc writes
 uncommitted for the human to fold into a future commit (see Git rules). For a
 `feature`, the `release-manager` closes instead.
 

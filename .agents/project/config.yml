@@ -2,7 +2,7 @@
 # Agents read this in step 0 of the startup protocol. Prose and knowledge go in
 # project.md; flags that agents and scripts must obey without ambiguity go here.
 commits:
-  mode: human-gated        # human-gated | agent  (see AGENTS.md git rules)
+  mode: agent              # human-gated | agent  (see AGENTS.md git rules)
   coauthor_trailers: false # keep false: no AI co-author trailers in commit messages
 context:
   compact_gate: 40         # % of the context window; at/above it an agent must not

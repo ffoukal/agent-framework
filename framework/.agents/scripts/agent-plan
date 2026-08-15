@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# agent-plan — feature-list state machine over the plan's "## Tasks" section.
+# Framework-owned; replaced on update.
+#
+# Why this is a script and not a protocol rule: the orchestrator must NOT read the
+# whole plan file to find the next Task (that is the single biggest avoidable read in
+# the implement phase). `agent-plan next` returns ~4 lines — the brief writes itself.
+#
+#   agent-plan next   [TASK-ID]        the Task to work on now (active, else first todo)
+#   agent-plan show   <Tn> [TASK-ID]   one Task block
+#   agent-plan status [TASK-ID]        one line: totals + which Task is active
+#   agent-plan set    <Tn> <state> [evidence...] [--task TASK-ID]
+#   agent-plan check  [TASK-ID]        invariants only (used by agent-task-check)
+#
+# States: todo | active | blocked | done
+# Invariants (enforced here, so no agent has to remember them):
+#   - at most ONE Task may be `active`      (WIP=1, lecture 07)
+#   - `done` requires non-empty evidence    (no self-promotion, lecture 08/09)
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+REPO_ROOT=$(dirname "$AGENTS_DIR")
+
+usage() {
+  sed -n '4,20p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+case "${1:-}" in -h|--help|'') usage 0 ;; esac
+CMD=$1; shift
+
+# --- resolve the plan file -------------------------------------------------
+resolve_task() {
+  if [ -n "${1:-}" ]; then printf '%s' "$1"
+  elif [ -f "$AGENTS_DIR/current-task" ]; then tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  fi
+}
+
+TASK_OVERRIDE=""
+
+find_plan() {
+  _tid=$(resolve_task "${1:-}")
+  if [ -z "$_tid" ]; then
+    echo "error: no task id given and .agents/current-task is empty" >&2; exit 2
+  fi
+  _task_md="$AGENTS_DIR/tasks/$_tid/task.md"
+  if [ ! -f "$_task_md" ]; then
+    echo "error: no task.md at $_task_md" >&2; exit 2
+  fi
+  _plan=$(grep -E '^plan:' "$_task_md" | head -1 | sed 's/^plan:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d '"')
+  case "$_plan" in
+    ''|null|~)
+      echo "error: task $_tid has no plan: in task.md frontmatter" >&2
+      echo "  fix: fix/chore tasks have no plan — their Diagnosis/brief is the plan, so" >&2
+      echo "       agent-plan does not apply. For a feature, the planner must write" >&2
+      echo "       docs/plans/<date>-<name>.md and link it there." >&2
+      exit 2 ;;
+  esac
+  case "$_plan" in /*) PLAN="$_plan" ;; *) PLAN="$REPO_ROOT/$_plan" ;; esac
+  if [ ! -f "$PLAN" ]; then
+    echo "error: plan file not found: $_plan (linked from $_tid task.md)" >&2; exit 2
+  fi
+}
+
+# --- parse "## Tasks" ------------------------------------------------------
+# Emits one record per Task: id<TAB>state<TAB>headline<TAB>has_evidence
+parse_tasks() {
+  awk '
+    /^## Tasks[[:space:]]*$/ { inblk=1; next }
+    inblk && /^## / { exit }
+    inblk && /^### / {
+      if (id != "") print id "\t" state "\t" head "\t" ev
+      line=$0; sub(/^###[[:space:]]*/, "", line)
+      id=line; sub(/[[:space:]—-].*$/, "", id)
+      head=line; sub(/^[^[:space:]]+[[:space:]]*[—-]?[[:space:]]*/, "", head)
+      state="todo"; ev=0; next
+    }
+    inblk && id != "" && /^[[:space:]]*-[[:space:]]*state:/ {
+      s=$0; sub(/^.*state:[[:space:]]*/, "", s); sub(/[[:space:]].*$/, "", s); state=s; next
+    }
+    inblk && id != "" && /^[[:space:]]*-[[:space:]]*evidence:/ {
+      e=$0; sub(/^.*evidence:[[:space:]]*/, "", e); gsub(/[[:space:]]/, "", e)
+      if (e != "" && e != "-" && e != "—" && e != "TODO") ev=1
+      next
+    }
+    END { if (id != "") print id "\t" state "\t" head "\t" ev }
+  ' "$PLAN"
+}
+
+print_block() {
+  awk -v want="$1" '
+    /^## Tasks[[:space:]]*$/ { inblk=1; next }
+    inblk && /^## / { exit }
+    inblk && /^### / {
+      line=$0; sub(/^###[[:space:]]*/, "", line)
+      id=line; sub(/[[:space:]—-].*$/, "", id)
+      p = (id == want)
+    }
+    inblk && p { print }
+  ' "$PLAN"
+}
+
+check_invariants() {
+  _errors=0
+  _actives=$(parse_tasks | awk -F'\t' '$2=="active"{print $1}')
+  _n=$(printf '%s' "$_actives" | grep -c . || true)
+  if [ "$_n" -gt 1 ]; then
+    echo "FAIL: WIP=1 violated — $_n Tasks are active ($(echo $_actives | tr '\n' ' '))" >&2
+    echo "  fix: finish or park one; run 'agent-plan set <Tn> todo' on the others." >&2
+    _errors=$((_errors + 1))
+  fi
+  parse_tasks | awk -F'\t' '$2=="done" && $4==0 {print $1}' | while read -r _t; do
+    [ -n "$_t" ] || continue
+    echo "FAIL: Task $_t is done with no evidence" >&2
+    echo "  fix: run its verify command, then 'agent-plan set $_t done \"<result>\"'." >&2
+  done
+  _noev=$(parse_tasks | awk -F'\t' '$2=="done" && $4==0' | grep -c . || true)
+  _errors=$((_errors + _noev))
+  parse_tasks | awk -F'\t' '$2!="todo" && $2!="active" && $2!="blocked" && $2!="done" {print $1"\t"$2}' \
+    | while IFS="$(printf '\t')" read -r _t _s; do
+        [ -n "$_t" ] || continue
+        echo "FAIL: Task $_t has invalid state '$_s' (want todo|active|blocked|done)" >&2
+      done
+  _bad=$(parse_tasks | awk -F'\t' '$2!="todo" && $2!="active" && $2!="blocked" && $2!="done"' | grep -c . || true)
+  _errors=$((_errors + _bad))
+  return "$_errors"
+}
+
+case "$CMD" in
+  next)
+    find_plan "${1:-}"
+    T=$(parse_tasks | awk -F'\t' '$2=="active"{print $1; exit}')
+    [ -n "$T" ] || T=$(parse_tasks | awk -F'\t' '$2=="todo"{print $1; exit}')
+    if [ -z "$T" ]; then
+      echo "none — every Task is done or blocked ($("$0" status "${1:-}"))"
+      exit 1
+    fi
+    print_block "$T"
+    ;;
+
+  show)
+    [ -n "${1:-}" ] || usage 2
+    _t=$1; shift
+    find_plan "${1:-}"
+    OUT=$(print_block "$_t")
+    [ -n "$OUT" ] || { echo "error: no Task '$_t' in $PLAN" >&2; exit 2; }
+    printf '%s\n' "$OUT"
+    ;;
+
+  status)
+    find_plan "${1:-}"
+    parse_tasks | awk -F'\t' '
+      { n++; c[$2]++; if ($2=="active") a=$1 }
+      END {
+        printf "%d Tasks | done %d | active %s | todo %d | blocked %d\n",
+          n, c["done"]+0, (a=="" ? "-" : a), c["todo"]+0, c["blocked"]+0
+      }'
+    ;;
+
+  set)
+    [ -n "${2:-}" ] || usage 2
+    _t=$1; _state=$2; shift 2
+    _ev=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --task) TASK_OVERRIDE=${2:-}; shift 2 ;;
+        *) _ev="${_ev:+$_ev }$1"; shift ;;
+      esac
+    done
+    case "$_state" in todo|active|blocked|done) : ;;
+      *) echo "error: invalid state '$_state' (want todo|active|blocked|done)" >&2; exit 2 ;;
+    esac
+    find_plan "$TASK_OVERRIDE"
+    print_block "$_t" | grep -q . || { echo "error: no Task '$_t' in $PLAN" >&2; exit 2; }
+
+    if [ "$_state" = "done" ] && [ -z "$_ev" ]; then
+      _cur=$(print_block "$_t" | grep -E '^[[:space:]]*-[[:space:]]*evidence:' | head -1 \
+             | sed 's/^.*evidence:[[:space:]]*//' | tr -d '[:space:]')
+      case "$_cur" in ''|-|—|TODO)
+        echo "FAIL: refusing to mark $_t done without evidence." >&2
+        echo "  Run the Task's verify command, then:" >&2
+        echo "    agent-plan set $_t done \"<sha> · <compact result>\"" >&2
+        exit 1 ;;
+      esac
+    fi
+
+    if [ "$_state" = "active" ]; then
+      _other=$(parse_tasks | awk -F'\t' -v me="$_t" '$2=="active" && $1!=me {print $1}' | head -1)
+      if [ -n "$_other" ]; then
+        echo "FAIL: WIP=1 — Task $_other is already active." >&2
+        echo "  fix: 'agent-plan set $_other done \"<evidence>\"' (or 'blocked'/'todo') first." >&2
+        exit 1
+      fi
+    fi
+
+    TMP=$(mktemp)
+    awk -v want="$_t" -v st="$_state" -v ev="$_ev" '
+      /^## Tasks[[:space:]]*$/ { inblk=1 }
+      inblk && /^## / && !/^## Tasks/ { inblk=0 }
+      inblk && /^### / {
+        line=$0; sub(/^###[[:space:]]*/, "", line)
+        id=line; sub(/[[:space:]—-].*$/, "", id)
+        p = (id == want)
+      }
+      {
+        if (inblk && p && $0 ~ /^[[:space:]]*-[[:space:]]*state:/) {
+          sub(/state:.*$/, "state: " st); print; next
+        }
+        if (inblk && p && ev != "" && $0 ~ /^[[:space:]]*-[[:space:]]*evidence:/) {
+          sub(/evidence:.*$/, "evidence: " ev); print; next
+        }
+        if (inblk && p && $0 ~ /^###[[:space:]]/ ) {
+          hdr=$0
+          if (st == "done")      { sub(/^### \[[ x~!]\] /, "### ", hdr); sub(/^### /, "### ", hdr) }
+          print hdr; next
+        }
+        print
+      }' "$PLAN" > "$TMP"
+    mv "$TMP" "$PLAN"
+    echo "$_t -> $_state${_ev:+ (evidence: $_ev)}"
+    check_invariants || exit 1
+    ;;
+
+  check)
+    find_plan "${1:-}"
+    if check_invariants; then
+      echo "OK: plan Tasks consistent ($("$0" status "${1:-}"))"
+    else
+      exit 1
+    fi
+    ;;
+
+  *) usage 2 ;;
+esac

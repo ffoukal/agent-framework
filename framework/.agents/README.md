@@ -29,6 +29,9 @@ versionado en `docs/`: `docs/specs/` (specs), `docs/plans/` (planes) y `docs/tas
   project/           # ★ específico de ESTE repo — el updater NUNCA lo toca
     project.md       # guía del repo para agentes
     config.yml       # settings parseables (modo de commit, etc.)
+    agent-test.sh     # implementación del runner compacto de tests
+    agent-verify.sh   # implementación del gate de verificación (quick|full|e2e|clean)
+    checks.sh         # reglas promovidas: hallazgos de review vueltos check ejecutable
     memory/          # arquitectura, dominio, code-map, testing, convenciones, decisiones
   tasks/             # estado de trabajo LOCAL (gitignoreado) — el updater NUNCA lo toca
     <TASK-ID>/       # una carpeta por tarea: task.md + progress.md (+ split-plan.md)
@@ -119,6 +122,56 @@ y muere en cada gate, así que no se acumula contexto caro. Si la cuota aprieta 
    lo listado, `git diff --stat` primero, grep antes que lecturas completas.
 5. **No saltees el gate de plan**: rehacer una implementación desviada es el mayor
    gasto de tokens posible.
+6. **Un script en vez de una lectura.** `agent-plan next` en vez de leer el plan
+   entero, `agent-task-next` en vez de leer `progress.md`, `agent-verify` en vez de
+   pegar salida de build. Devuelven un puñado de líneas donde la lectura costaría
+   cientos — y a diferencia de la lectura, no quedan ocupando contexto el resto de la
+   sesión. Misma lógica que `agent-test`: la salida completa vive en disco.
+
+## Verificación: `agent-test` vs `agent-verify`
+
+`agent-test` prueba que **los tests pasan**. `agent-verify` prueba que **el cambio
+está hecho**: `quick` (build+lint+typecheck+`checks.sh`), `full` (+ suite), `e2e`
+(+ la app arranca y el camino crítico corre de verdad), `clean` (gate de handoff: sin
+restos de debug, sin artefactos sueltos). El plan fija el nivel; `e2e` es obligatorio
+cuando el diff cruza una capa, que es justo donde los mocks son ciegos. Sin evidencia
+de nivel ejecutado, un `APPROVED` es una opinión sobre un diff.
+
+## Lista de features: el plan es una máquina de estados
+
+Para un `feature`, la sección `## Tasks` del plan **es** el scheduler de la fase
+implement: cada `### Tn` lleva `verify` (comando ejecutable), `state`
+(`todo|active|blocked|done`) y `evidence`. Se maneja con `agent-plan` (`next`, `set`,
+`status`, `check`), nunca a mano. El script impone dos reglas que si no, nadie
+recuerda: **WIP=1** (una sola Task `active`) y **nada pasa a `done` sin evidencia** —
+y el implementer nunca promueve su propia Task, la cierra el orchestrator.
+
+## Simplificación periódica del harness
+
+Cada pieza de este framework existe porque algún modelo no podía hacer algo solo. Los
+modelos mejoran; las piezas no se auto-borran. **Una vez por mes**: desactivá un
+componente (una regla de rol, un check, una fase), corré una tarea representativa, y si
+el resultado no empeora, borralo. Si empeora, restauralo o reemplazalo por algo más
+liviano. Sin esta poda el harness solo crece, y cada línea que sobra se paga en tokens
+en cada tarea, para siempre.
+
+Para saber *qué* podar y qué reforzar, mirá el campo `harness_gap` de los resúmenes
+(`none|spec|context|env|feedback|state`):
+
+```sh
+grep -h '^harness_gap:' docs/tasks/*.md | sort | uniq -c | sort -rn
+```
+
+La capa que más aparece es donde conviene invertir; las que nunca aparecen son
+candidatas a poda. Es adivinar menos y medir un poco.
+
+## Readiness del repo
+
+`agent-env-check` responde "¿este repo puede realmente sostener el pipeline?":
+`project.md` sin TODOs, `agent-test.sh` y `agent-verify.sh` presentes y ejecutables,
+`docs/{specs,plans,tasks}` + INDEX, `.agents/tasks/` gitignoreado, adapters generados.
+Corre solo al final de `install.sh`/`update.sh` y en cada `agent-task-check` (como
+warning). Es el único subsistema que un agente no puede arreglarse a sí mismo.
 
 ## Reglas de git con enforcement mecánico (Claude Code)
 

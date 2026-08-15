@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# agent-verify — compact verification gate (dispatcher). Framework-owned; replaced on
+# update. Sibling of agent-test: agent-test proves TESTS pass, agent-verify proves the
+# SYSTEM is in a shippable state.
+#
+# Contract (implemented per-repo by .agents/project/agent-verify.sh — repo-owned,
+# never touched by the updater):
+#   agent-verify quick   build + lint + typecheck + .agents/project/checks.sh
+#   agent-verify full    quick + the whole test suite (via agent-test all)
+#   agent-verify e2e     full + app boots and the critical path runs for real
+#   agent-verify clean   working tree is handoff-ready: no debug leftovers, no
+#                        stray artifacts, app still starts (no build/test run)
+#
+# Every level prints ONE compact block (PASS/FAIL per step + failing ids). Full tool
+# output goes to .agents/test-logs/verify-<level>.log, never to stdout — the same
+# context-budget rule as agent-test.
+#
+# Exit: 0 all steps passed · 1 a step failed · 2 not implemented / bad usage.
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+IMPL="$(dirname "$SCRIPT_DIR")/project/agent-verify.sh"
+
+case "${1:-}" in
+  -h|--help|'')
+    echo "Usage: agent-verify quick | full | e2e | clean"
+    echo "  quick  build + lint + typecheck + promoted checks"
+    echo "  full   quick + full test suite"
+    echo "  e2e    full + app boots + critical path (required when a diff crosses layers)"
+    echo "  clean  handoff gate: no debug leftovers, no stray artifacts, app starts"
+    exit 0 ;;
+  quick|full|e2e|clean) : ;;
+  *) echo "error: unknown level '$1' (want quick|full|e2e|clean)" >&2; exit 2 ;;
+esac
+
+if [ ! -f "$IMPL" ]; then
+  cat >&2 <<'EOF'
+error: no repo implementation at .agents/project/agent-verify.sh
+
+WHY: "the tests pass" is not "the change is done". Unit tests mock exactly the
+seams where integration breaks, so a verdict based only on them is a guess.
+
+FIX: copy a reference from the framework checkout
+  (detectors/agent-verify/<stack>.sh, or detectors/agent-verify/generic.sh),
+  chmod +x it, and fill its TODO-marked commands. Until then, state in the task
+  that runtime verification is UNAVAILABLE — do not claim a level that did not run.
+EOF
+  exit 2
+fi
+
+[ -x "$IMPL" ] || { echo "error: $IMPL exists but is not executable (chmod +x it)" >&2; exit 2; }
+exec "$IMPL" "$@"

@@ -5,6 +5,53 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Verification, feature lists and readiness (harness-engineering pass)
+
+Closes the gaps found comparing the framework against the *Learn Harness Engineering*
+lectures. Design rule throughout: **a rule a script enforces costs zero tokens per
+task; a rule an agent must remember costs tokens forever and still gets missed.** So
+every addition below landed as a script or a template field, not as protocol prose —
+the `task-protocol` skill grew ~35 lines, all of it pointing at tooling.
+
+- **Plan `## Tasks` is now a feature list, not a checklist.** Each `### Tn` block
+  carries `verify` (a runnable command), `state` (`todo|active|blocked|done`) and
+  `evidence`. New **`agent-plan`** script drives it: `next` (returns the ~4 lines that
+  *are* the implementer brief — nobody reads the plan file anymore), `set`, `status`,
+  `check`. It enforces **WIP=1** (one `active` Task) and refuses `done` without
+  evidence; the implementer never promotes its own Task, the orchestrator does.
+  `agent-task-check` delegates the invariants to it.
+- **New `agent-verify`** (dispatcher + repo-owned `.agents/project/agent-verify.sh`,
+  same split as `agent-test`): `quick` (build/lint/typecheck/promoted checks) · `full`
+  (+ suite) · `e2e` (+ the app boots and the critical path runs) · `clean` (handoff
+  gate: no debug leftovers in the diff since `base_commit`). Full output stays on
+  disk. Unfilled steps report **TODO/PARTIAL, never PASS** — a green result that
+  proves nothing is worse than a red one. The plan declares the required level; `e2e`
+  is mandatory when the diff crosses a layer boundary.
+- **Runtime-evidence gate on review.** `APPROVED` now requires a
+  `Verified: <level> — <result>` line in `task.md`; `agent-task-check` warns when it
+  is missing. Reading a diff cannot tell you the app still runs.
+- **Promoted checks.** A review finding that recurs a third time becomes a line in
+  repo-owned `.agents/project/checks.sh`, run by `agent-verify quick`.
+- **New `agent-env-check`**: the readiness checklist for the environment subsystem —
+  the one thing an agent cannot bootstrap for itself. Unfilled `project.md` TODOs,
+  missing `agent-test.sh`/`agent-verify.sh`, missing `docs/{specs,plans,tasks}`,
+  ungitignored `.agents/tasks/`, missing adapters. Runs at the end of
+  `install.sh`/`update.sh` and as a warning inside `agent-task-check`.
+- **Clean handoff.** The shutdown protocol runs `agent-verify clean` at commit
+  boundaries and task close (not every phase — it would not pay for itself).
+- **`harness_gap` in the resume frontmatter** (`none|spec|context|env|feedback|state`):
+  one word naming which harness layer cost the task time. Validated at close;
+  `grep -h '^harness_gap:' docs/tasks/*.md | sort | uniq -c | sort -rn` turns the
+  bottleneck from a guess into a count.
+- **Parallel Tasks require git worktrees** (documented in `orchestrating-agents`,
+  opt-in only). Sequential stays the default: two implementers in one working tree
+  corrupt each other, and review attention is the serial resource anyway.
+- **Periodic harness simplification** documented in `.agents/README.md`: monthly,
+  disable one component, run a representative task, delete it if nothing degrades.
+  Every line that outlives its usefulness is paid in tokens on every task.
+- `install.sh` seeds `agent-verify.sh` (stack reference, generic fallback) and creates
+  `docs/{specs,plans,tasks}`.
+
 ### Protocol token tax cut (Claude Code-first)
 - **`AGENTS.md` shrunk from ~20K to ~3K chars.** Claude Code auto-injects the project
   `CLAUDE.md` into every dispatched custom subagent unconditionally (confirmed against

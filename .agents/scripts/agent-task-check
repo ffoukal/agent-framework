@@ -220,6 +220,41 @@ if [ -f "$PROGRESS" ]; then
   fi
 fi
 
+# --- feature list invariants (WIP=1, evidence) -----------------------------
+# Delegated to agent-plan so the rules live in exactly one place. Only features have
+# a plan file; everything else has nothing to check.
+if [ "$TYPE" = "feature" ] && [ -x "$SCRIPT_DIR/agent-plan" ]; then
+  if grep -qE '^plan:[[:space:]]*[^[:space:]]' "$TASK" 2>/dev/null \
+     && ! grep -qE '^plan:[[:space:]]*(null|~)?[[:space:]]*$' "$TASK" 2>/dev/null; then
+    PLAN_OUT=$("$SCRIPT_DIR/agent-plan" check "$TASK_ID" 2>&1) || {
+      printf '%s\n' "$PLAN_OUT" >&2
+      fail "plan Tasks violate the feature-list invariants (see above)"
+    }
+  fi
+fi
+
+# --- runtime verification evidence at review/close -------------------------
+# APPROVED/DONE without a "Verified:" line means the verdict rests on reading a diff.
+if [ -f "$TASK" ]; then
+  case "$STATUS" in
+    APPROVED|DONE)
+      case "$TYPE" in
+        feature|fix|chore)
+          grep -qiE '^[[:space:]]*Verified:' "$TASK" \
+            || warn "task.md has no 'Verified: <level> — <result>' line but status is $STATUS — an APPROVED verdict should name the verification that actually ran (agent-verify quick|full|e2e), or 'UNAVAILABLE'"
+          ;;
+      esac ;;
+  esac
+fi
+
+# --- harness readiness (cheap, advisory) -----------------------------------
+if [ -x "$SCRIPT_DIR/agent-env-check" ]; then
+  ENV_OUT=$("$SCRIPT_DIR/agent-env-check" --quiet 2>&1) || {
+    printf '%s\n' "$ENV_OUT" | sed 's/^/  /' >&2
+    warn "harness gaps above — they are paid back on every task until closed"
+  }
+fi
+
 # --- split-plan approval gate ---------------------------------------------
 SP="$TASK_DIR/split-plan.md"
 if [ -f "$SP" ]; then
@@ -234,8 +269,17 @@ fi
 if [ "$STATUS" = "DONE" ]; then
   case "$TYPE" in
     fix|chore|feature)
-      if ! grep -rlqE "^task:[[:space:]]*$TASK_ID" "$REPO_ROOT/docs/tasks/" 2>/dev/null; then
+      RESUME=$(grep -rlE "^task:[[:space:]]*$TASK_ID" "$REPO_ROOT/docs/tasks/" 2>/dev/null | head -1)
+      if [ -z "$RESUME" ]; then
         fail "status DONE but no resume in docs/tasks/ has 'task: $TASK_ID' frontmatter"
+      else
+        HG=$(grep -E '^harness_gap:' "$RESUME" | head -1 | sed 's/^harness_gap:[[:space:]]*//' \
+             | sed 's/#.*//' | awk '{print $1}')
+        case "$HG" in
+          none|spec|context|env|feedback|state) : ;;
+          "") warn "resume $(basename "$RESUME") has no 'harness_gap:' — one word (none|spec|context|env|feedback|state); it is how the harness's own bottleneck becomes visible" ;;
+          *) fail "resume $(basename "$RESUME") has invalid harness_gap '$HG' (want none|spec|context|env|feedback|state)" ;;
+        esac
       fi
       if [ -f "$REPO_ROOT/docs/tasks/INDEX.md" ]; then
         grep -q "$TASK_ID" "$REPO_ROOT/docs/tasks/INDEX.md" \

@@ -31,6 +31,16 @@ no separate log file), plus `progress.md` (including its `## Commit request` sec
   are being dispatched under nested orchestration and the brief bundles many Tasks
   together, say so in your reply instead of running them all — the orchestrator should
   be dispatching you once per Task.
+- **Feature-list Tasks (features).** Your brief carries one Task (from
+  `agent-plan next`). Work only that Task — no "while I'm here". Run its `verify`
+  command and report the result verbatim-but-compact; **never run
+  `agent-plan set ... done` yourself** — the orchestrator promotes the Task after
+  seeing the evidence. If you cannot finish it, say so and stop; a half-done Task
+  reported as done is worse than a blocked one.
+- **Before handing off to review**, run the plan's `## Verification level`
+  (`.agents/scripts/agent-verify quick|full|e2e`) and record the level + result under
+  `## Implementation notes`. If `.agents/project/agent-verify.sh` is missing, write
+  "runtime verification UNAVAILABLE" there — do not imply a level ran.
 - If the `## Review` section has `CHANGES_REQUESTED`, prioritize those changes.
 - Minimal changes; do not redesign unless the plan asks for it.
 - In chores: if design decisions appear, STOP and propose a type escalation

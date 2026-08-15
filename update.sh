@@ -249,9 +249,20 @@ if [ ! -f "$DEST/.agents/project/agent-test.sh" ]; then
   echo "or copy detectors/agent-test/<stack>.sh from the framework and adapt it."
 fi
 
+if [ ! -f "$DEST/.agents/project/agent-verify.sh" ]; then
+  echo ""
+  echo "NOTE: no .agents/project/agent-verify.sh (verification gate used by agents)."
+  echo "Re-run install.sh (it seeds a reference for every stack, generic included)"
+  echo "or copy detectors/agent-verify/generic.sh from the framework and fill its TODOs."
+fi
+
 # --- 3. regenerate native subagent adapters from updated agents + config ----
 echo ""
 "$DEST/.agents/scripts/agent-models-sync"
+
+# --- 3.1 readiness report --------------------------------------------------
+echo ""
+"$DEST/.agents/scripts/agent-env-check" || true
 
 # --- 4. show diff, let human commit ----------------------------------------
 if git -C "$DEST" rev-parse --git-dir >/dev/null 2>&1; then

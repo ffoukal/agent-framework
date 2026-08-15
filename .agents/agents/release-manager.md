@@ -35,7 +35,8 @@ For features with a split, coordinate the stack merge order together with the
 
 After the release notes, close the task: distill `task.md` into
 `docs/tasks/YYYY-MM-DD-<task-name>.md` (use `templates/resume.md`; frontmatter `tags`,
-`touched` ≤5 per the template's rules, `related`, `outcome`, spec/plan links), append
+`touched` ≤5 per the template's rules, `related`, `outcome`, `harness_gap` — one word,
+the layer that cost the task time, `none` if it ran clean — spec/plan links), append
 the one-line entry to `docs/tasks/INDEX.md`, and set `status: DONE`. Leave these small
 doc writes uncommitted for the human to fold into a future commit (see Git rules). If
 PRs are still pending merge, set `outcome: needs-follow-up` in the resume frontmatter

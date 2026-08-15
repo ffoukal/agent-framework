@@ -108,12 +108,22 @@ Fresh-subagent-per-task is only possible at the layer that holds the Agent tool:
 orchestrator. So when the plan decomposes the current commit boundary into multiple
 numbered Tasks, the orchestrator — not the implementer — runs that loop:
 
-- For each remaining plan Task in the current span (up to the next gate or the
-  `stop-at` boundary), dispatch a **separate, fresh** `implementer` subagent whose
-  brief contains only: that Task's text (extract it from the plan — never hand over
-  the whole plan file), the interfaces/decisions from immediately preceding Tasks that
-  aren't recoverable from `git diff` alone, and whether this Task closes the commit
-  boundary or hands off to the next Task's dispatch.
+- Get the Task with `.agents/scripts/agent-plan next` — **never by reading the plan
+  file**. It returns the ~4 lines that are already the brief (id, behavior, verify
+  command, state). Mark it `active` (`agent-plan set Tn active`) before dispatching:
+  the script refuses a second `active` Task, which is how **WIP=1** is enforced without
+  anyone having to police it.
+- For that Task, dispatch a **separate, fresh** `implementer` subagent whose brief
+  contains only: the `agent-plan next` output, the interfaces/decisions from
+  immediately preceding Tasks that aren't recoverable from `git diff` alone, and
+  whether this Task closes the commit boundary or hands off to the next dispatch.
+- When the implementer reports back, run its `verify` command yourself (or trust the
+  evidence it recorded) and close the Task with
+  `agent-plan set Tn done "<sha> · <result>"`. The implementer never promotes its own
+  Task to `done` — separating who does the work from who declares it done is the whole
+  point, and here it costs one script call.
+- Do not advance to the next Task while the current one is `active`. If it cannot be
+  finished, `agent-plan set Tn blocked` and return — a blocked Task is a gate.
 - **Mid-boundary Task** (more Tasks remain before the boundary's commit): the
   implementer leaves the working tree uncommitted and reports completion; the
   orchestrator appends a one-line note to `progress.md` `## Recent log` (e.g. `Task 7:
@@ -129,6 +139,14 @@ numbered Tasks, the orchestrator — not the implementer — runs that loop:
 - This sub-loop still counts against the context-gate check (step 6): if the
   orchestrator's own context crosses `context.compact_gate` mid-span, return now — the
   next `/task` resumes the remaining Tasks from `progress.md`/the plan, at zero cost.
+
+**Parallel Tasks (opt-in).** The loop above is sequential by default, and that default
+stands: two implementers editing one working tree corrupt each other, and your review
+attention — not agent throughput — is the serial resource anyway. Only when the human
+explicitly asks for parallelism AND the Tasks are independent (disjoint files, no
+shared interface being introduced): give each implementer its own **git worktree**, one
+Task each, and merge them back one at a time, running the verify command after each
+merge. Without worktree isolation, do not parallelize.
 
 This is strictly an orchestrator-side loop. Never write a phase-agent brief that asks
 the implementer to dispatch subagents itself or to "go task-by-task" on its own — it

@@ -55,6 +55,51 @@ Before stopping, every agent MUST:
    from `.agents/project/config.yml` (see Agent model tiers below) — and append a
    compact entry to `## Recent log` (keep only the last ~5 entries).
 3. Run `.agents/scripts/agent-task-check <task-id>` and fix anything it reports.
+4. **At a commit boundary or task close only** (not every phase): run
+   `.agents/scripts/agent-verify clean`. A session ends with the tree handoff-ready or
+   it does not end — "we'll clean it up next time" never happens, and the next session
+   pays for it at full price.
+
+## Verification & definition of done
+
+`agent-test` proves tests pass. **`agent-verify` proves the change is done.** Levels:
+`quick` (build/lint/typecheck/promoted checks) · `full` (+ suite) · `e2e` (+ the app
+actually boots and the critical path runs) · `clean` (handoff gate).
+
+- The plan's `## Verification level` sets the gate for the whole task; `e2e` is
+  **required** when the diff crosses a layer boundary — that is precisely where mocked
+  tests are blind.
+- A Task, phase or task is `done` only with **evidence**: the level that ran and its
+  result. No evidence, no done — `agent-plan` and `agent-task-check` enforce this
+  rather than trusting anyone's judgement, including yours.
+- A level reports `PASS`, `FAIL` or `PARTIAL` (some steps still TODO in the repo's
+  `agent-verify.sh`). Report `PARTIAL` as `PARTIAL` — never round it up to passing.
+  No `agent-verify.sh` at all → runtime verification is `UNAVAILABLE`. Never claim a
+  level that did not run.
+- Both scripts keep full output on disk and return a compact summary. Never call the
+  underlying runner directly.
+
+### Plan Tasks are a feature list, not a checklist
+
+For a `feature`, the plan's `## Tasks` section is the state machine of the implement
+phase (`todo | active | blocked | done`, each with a runnable `verify`). Drive it with
+`.agents/scripts/agent-plan` — never by reading the plan file and editing it by hand:
+
+```
+agent-plan next          # the Task to work on now (~4 lines — this IS the brief)
+agent-plan set T3 done "abc1234 · agent-test one CartTest: 12 passed"
+agent-plan status        # one line, for the handoff
+```
+
+WIP=1 (one `active` Task) and "no `done` without evidence" are enforced by the script.
+`fix`/`chore` have no plan file — their Diagnosis/brief is the plan, so `agent-plan`
+does not apply.
+
+### Promoted checks
+
+When a review finding recurs (~3rd time), it stops being a comment and becomes a line
+in `.agents/project/checks.sh`, which `agent-verify quick` runs. A rule an agent must
+remember costs tokens on every task forever; a rule a script enforces costs zero.
 
 ## Agent model tiers
 
@@ -219,6 +264,11 @@ Sessions run on limited quota. Every agent MUST:
   full diff of relevant files only.
 - Prefer search (grep/glob) and partial reads over reading whole source files; never
   re-read a file already read in this session.
+- **Prefer a script over a read.** `agent-plan next` instead of reading the plan,
+  `agent-task-next` instead of reading `progress.md`, `agent-plan status` instead of
+  counting checkboxes, `agent-verify` instead of pasting build output. Each of these
+  returns a handful of lines where the read would cost hundreds — and unlike a read,
+  the answer does not sit in context for the rest of the session.
 - **Never dump raw test-runner output into the session** — it is re-read on every
   later turn. Run tests through `.agents/scripts/agent-test` when the repo implements
   it (`all` = full suite with compact summary, `one <pattern>` = targeted run,

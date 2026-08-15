@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# agent-env-check — is this repo's harness actually usable? Framework-owned.
+#
+# The environment subsystem is the one no agent can bootstrap for itself: a missing
+# agent-test.sh or a project.md still full of TODOs does not fail loudly, it just
+# quietly degrades every task afterwards. This is the readiness checklist, run once
+# after install and cheaply from agent-task-check.
+#
+#   agent-env-check          full report
+#   agent-env-check --quiet  print only problems (nothing at all when ready)
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+ROOT=$(dirname "$AGENTS_DIR")
+QUIET=0
+[ "${1:-}" = "--quiet" ] && QUIET=1
+
+GAPS=0
+ok()   { [ "$QUIET" -eq 1 ] || printf '  ok    %s\n' "$1"; }
+gap()  { printf '  GAP   %s\n' "$1"; printf '        fix: %s\n' "$2"; GAPS=$((GAPS + 1)); }
+
+[ "$QUIET" -eq 1 ] || echo "harness readiness — $ROOT"
+
+# 1. repo settings
+if [ -f "$AGENTS_DIR/project/config.yml" ]; then ok "config.yml"
+else gap "no .agents/project/config.yml" "re-run install.sh from the framework checkout"; fi
+
+# 2. project guide actually filled in
+PM="$AGENTS_DIR/project/project.md"
+if [ ! -f "$PM" ]; then
+  gap "no .agents/project/project.md" "re-run install.sh, then fill it in"
+else
+  TODOS=$(grep -c 'TODO' "$PM" 2>/dev/null || true)
+  if [ "${TODOS:-0}" -gt 0 ]; then
+    gap "project.md still has $TODOS TODO marker(s)" \
+        "fill them — every unanswered TODO is context an agent will re-derive, per task, forever"
+  else ok "project.md filled"; fi
+fi
+
+# 3. compact test runner
+if [ -x "$AGENTS_DIR/project/agent-test.sh" ]; then ok "agent-test.sh"
+elif [ -f "$AGENTS_DIR/project/agent-test.sh" ]; then
+  gap "agent-test.sh is not executable" "chmod +x .agents/project/agent-test.sh"
+else
+  gap "no .agents/project/agent-test.sh" \
+      "copy detectors/agent-test/<stack>.sh from the framework and fill its TODOs — without it agents dump raw runner output into context"
+fi
+
+# 4. verification gate
+if [ -x "$AGENTS_DIR/project/agent-verify.sh" ]; then ok "agent-verify.sh"
+elif [ -f "$AGENTS_DIR/project/agent-verify.sh" ]; then
+  gap "agent-verify.sh is not executable" "chmod +x .agents/project/agent-verify.sh"
+else
+  gap "no .agents/project/agent-verify.sh" \
+      "copy detectors/agent-verify/generic.sh from the framework and fill its TODOs — without it 'done' is an opinion"
+fi
+
+# 5. promoted checks (optional but expected once reviews repeat)
+if [ -x "$AGENTS_DIR/project/checks.sh" ]; then ok "checks.sh (promoted review rules)"
+else [ "$QUIET" -eq 1 ] || printf '  --    no checks.sh yet (optional until a review finding repeats)\n'; fi
+
+# 6. durable doc tree
+MISSING=""
+for d in docs/specs docs/plans docs/tasks; do
+  [ -d "$ROOT/$d" ] || MISSING="${MISSING:+$MISSING }$d"
+done
+[ -f "$ROOT/docs/tasks/INDEX.md" ] || MISSING="${MISSING:+$MISSING }docs/tasks/INDEX.md"
+if [ -n "$MISSING" ]; then
+  gap "missing durable docs: $MISSING" "mkdir -p them; INDEX.md is how past work reaches new tasks"
+else ok "docs/{specs,plans,tasks} + INDEX.md"; fi
+
+# 7. task state is local-only
+if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  if git -C "$ROOT" check-ignore -q .agents/tasks 2>/dev/null; then ok ".agents/tasks/ gitignored"
+  else gap ".agents/tasks/ is not gitignored" "add '.agents/tasks/' to .gitignore"; fi
+fi
+
+# 8. generated CLI adapters
+if [ -d "$ROOT/.claude/agents" ] && [ -n "$(ls "$ROOT/.claude/agents"/*.md 2>/dev/null)" ]; then
+  ok ".claude/agents adapters"
+else
+  gap "no .claude/agents adapters" "run .agents/scripts/agent-models-sync"
+fi
+
+if [ "$GAPS" -eq 0 ]; then
+  [ "$QUIET" -eq 1 ] || echo "READY — no harness gaps."
+  exit 0
+fi
+echo "$GAPS harness gap(s). Each one is paid back on every task until closed." >&2
+exit 1
