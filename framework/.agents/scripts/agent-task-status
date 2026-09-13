@@ -15,6 +15,8 @@ esac
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+# shellcheck source=_frontmatter.sh
+. "$SCRIPT_DIR/_frontmatter.sh"
 
 # --- --all / --list : overview of every task ------------------------------
 case "${1:-}" in
@@ -26,8 +28,7 @@ case "${1:-}" in
       [ -d "$_d" ] || continue
       _id=$(basename "$_d")
       _s="$_d/progress.md"
-      _fld() { grep -E "^[[:space:]]*$1:" "$_s" 2>/dev/null | head -1 \
-        | sed 's/#.*//' | sed "s/.*$1:[[:space:]]*//" | awk '{print $1}'; }
+      _fld() { fm_get "$_s" "$1"; }
       _mark=''; [ "$_id" = "$CURRENT" ] && _mark='*'
       printf '%-16s %-8s %-16s %-14s %-20s %s\n' \
         "$_id" "$(_fld type)" "$(_fld status)" "$(_fld phase)" "$(_fld updated)" "$_mark"

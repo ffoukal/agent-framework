@@ -55,8 +55,8 @@ fi
 if [ -z "${AGENT_BASE_COMMIT:-}" ]; then
   _task=$("$SCRIPT_DIR/agent-task-current")
   if [ -n "$_task" ]; then
-    AGENT_BASE_COMMIT=$(grep -E '^base_commit:' "$(dirname "$SCRIPT_DIR")/tasks/$_task/progress.md" 2>/dev/null \
-      | head -1 | sed 's/^base_commit:[[:space:]]*//' | awk '{print $1}') || true
+    . "$SCRIPT_DIR/_frontmatter.sh"
+    AGENT_BASE_COMMIT=$(fm_get "$(dirname "$SCRIPT_DIR")/tasks/$_task/progress.md" base_commit)
     export AGENT_BASE_COMMIT
   fi
 fi

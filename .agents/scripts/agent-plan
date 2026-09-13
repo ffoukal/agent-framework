@@ -20,6 +20,8 @@ set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+# shellcheck source=_frontmatter.sh
+. "$SCRIPT_DIR/_frontmatter.sh"
 REPO_ROOT=$(dirname "$AGENTS_DIR")
 
 usage() {
@@ -48,15 +50,14 @@ find_plan() {
   if [ ! -f "$_task_md" ]; then
     echo "error: no task.md at $_task_md" >&2; exit 2
   fi
-  _plan=$(grep -E '^plan:' "$_task_md" | head -1 | sed 's/^plan:[[:space:]]*//' | sed 's/[[:space:]]*#.*//' | tr -d '"')
-  case "$_plan" in
-    ''|null|~)
+  _plan=$(fm_get "$_task_md" plan)
+  if fm_is_null "$_plan"; then
       echo "error: task $_tid has no plan: in task.md frontmatter" >&2
       echo "  fix: fix/chore tasks have no plan — their Diagnosis/brief is the plan, so" >&2
       echo "       agent-plan does not apply. For a feature, the planner must write" >&2
       echo "       docs/plans/<date>-<name>.md and link it there." >&2
-      exit 2 ;;
-  esac
+      exit 2
+  fi
   case "$_plan" in /*) PLAN="$_plan" ;; *) PLAN="$REPO_ROOT/$_plan" ;; esac
   if [ ! -f "$PLAN" ]; then
     echo "error: plan file not found: $_plan (linked from $_tid task.md)" >&2; exit 2

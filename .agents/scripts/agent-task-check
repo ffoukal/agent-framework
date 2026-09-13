@@ -15,6 +15,8 @@ esac
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+# shellcheck source=_frontmatter.sh
+. "$SCRIPT_DIR/_frontmatter.sh"
 
 resolve_task() {
   if [ -n "${1:-}" ]; then
@@ -110,8 +112,7 @@ else
   if [ -z "$FM" ]; then
     fail "progress.md frontmatter not parseable (missing --- delimiters)"
   else
-    get() { printf '%s\n' "$FM" | grep -E "^[[:space:]]*$1:" | head -1 \
-      | sed "s/#.*//" | sed "s/.*$1:[[:space:]]*//" | awk '{print $1}'; }
+    get() { fm_get "$PROGRESS" "$1"; }
     STATUS=$(get status)
     TYPE=$(get type)
     PHASE=$(get phase)
@@ -223,13 +224,18 @@ fi
 # --- feature list invariants (WIP=1, evidence) -----------------------------
 # Delegated to agent-plan so the rules live in exactly one place. Only features have
 # a plan file; everything else has nothing to check.
-if [ "$TYPE" = "feature" ] && [ -x "$SCRIPT_DIR/agent-plan" ]; then
-  if grep -qE '^plan:[[:space:]]*[^[:space:]]' "$TASK" 2>/dev/null \
-     && ! grep -qE '^plan:[[:space:]]*(null|~)?[[:space:]]*$' "$TASK" 2>/dev/null; then
-    PLAN_OUT=$("$SCRIPT_DIR/agent-plan" check "$TASK_ID" 2>&1) || {
-      printf '%s\n' "$PLAN_OUT" >&2
+# A feature before the plan phase has plan: null — nothing to check yet.
+if [ "$TYPE" = "feature" ] && [ -x "$SCRIPT_DIR/agent-plan" ] \
+   && ! fm_is_null "$(fm_get "$TASK" plan)"; then
+  _plan_rc=0
+  PLAN_OUT=$("$SCRIPT_DIR/agent-plan" check "$TASK_ID" 2>&1) || _plan_rc=$?
+  if [ "$_plan_rc" -ne 0 ]; then
+    printf '%s\n' "$PLAN_OUT" >&2
+    if [ "$_plan_rc" -eq 1 ]; then
       fail "plan Tasks violate the feature-list invariants (see above)"
-    }
+    else
+      fail "the plan linked from task.md could not be checked (see above)"
+    fi
   fi
 fi
 
@@ -258,8 +264,7 @@ fi
 # --- split-plan approval gate ---------------------------------------------
 SP="$TASK_DIR/split-plan.md"
 if [ -f "$SP" ]; then
-  SP_APPROVED=$(grep -E '^[[:space:]]*approved_by_human:' "$SP" | head -1 \
-    | sed 's/.*approved_by_human:[[:space:]]*//' | awk '{print $1}')
+  SP_APPROVED=$(fm_get "$SP" approved_by_human)
   if [ "$SP_APPROVED" = "false" ] && [ "$STATUS" != "NEEDS_HUMAN" ]; then
     fail "split-plan.md approved_by_human: false but status is '$STATUS' (must stay NEEDS_HUMAN until approved)"
   fi
@@ -273,8 +278,7 @@ if [ "$STATUS" = "DONE" ]; then
       if [ -z "$RESUME" ]; then
         fail "status DONE but no resume in docs/tasks/ has 'task: $TASK_ID' frontmatter"
       else
-        HG=$(grep -E '^harness_gap:' "$RESUME" | head -1 | sed 's/^harness_gap:[[:space:]]*//' \
-             | sed 's/#.*//' | awk '{print $1}')
+        HG=$(fm_get "$RESUME" harness_gap)
         case "$HG" in
           none|spec|context|env|feedback|state) : ;;
           "") warn "resume $(basename "$RESUME") has no 'harness_gap:' — one word (none|spec|context|env|feedback|state); it is how the harness's own bottleneck becomes visible" ;;

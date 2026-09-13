@@ -5,6 +5,22 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Fix: fresh `feature` tasks failed `agent-task-check`
+
+- `agent-task-check` decided whether a feature had a plan with a regex that did not
+  tolerate the template's trailing comment (`plan: null   # feature: ...`), so every
+  new feature task failed in the spec phase. All task scripts (`agent-task-check`,
+  `agent-plan`, `agent-task-status`, `agent-verify`) now read frontmatter through one
+  sourced helper, `scripts/_frontmatter.sh` (`fm_get`, `fm_is_null`), so they can't
+  diverge again. `approved_by_human` (split-plan) and `harness_gap` (resume) had the
+  same comment-parsing weakness and use it too.
+- A plan that cannot be checked (`agent-plan` exit 2: missing file, no link) is now
+  reported as such, not as "plan Tasks violate the feature-list invariants" (exit 1).
+- `agent-task-new` seeds the Recent log with a creation entry, so a task is valid from
+  birth, and its final hint points at the `task-protocol` skill instead of AGENTS.md.
+- New `tests/task-scripts.sh` (run in CI): fresh feature/chore/fix tasks pass
+  `agent-task-check`; a missing plan is not reported as an invariant violation.
+
 ### Active-task pointer moved to `.agents/tasks/.current` (breaking, auto-migrated)
 
 `.agents/current-task` was per-dev local state living outside the gitignored

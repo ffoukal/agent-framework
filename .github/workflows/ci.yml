@@ -21,6 +21,9 @@ jobs:
       - name: agent-skill-check (skill structural lint)
         run: .agents/scripts/agent-skill-check
 
+      - name: task scripts regression tests (fresh tasks pass agent-task-check)
+        run: tests/task-scripts.sh
+
       - name: install.sh smoke test (fresh install into a scratch repo)
         run: |
           set -eu

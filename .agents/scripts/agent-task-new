@@ -71,10 +71,14 @@ awk -v goal="$GOAL" '
   !done && $0 == "## Goal" { print goal; done=1 }
 ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 
+# Seed the Recent log so the task is valid from birth (agent-task-check requires an entry).
+printf '\n### %s | agent-task-new | - | %s\n- Task created from templates.\n' \
+  "$NOW" "$(git rev-parse --short HEAD 2>/dev/null || echo none)" >> "$TASK_DIR/progress.md"
+
 printf '%s\n' "$TASK_ID" > "$AGENTS_DIR/tasks/.current"
 
 echo "Created task $TASK_ID"
 echo "  dir:         $TASK_DIR"
 echo "  base_commit: $BASE_COMMIT"
 echo "  current task (.agents/tasks/.current) set to $TASK_ID"
-echo "Next: prune task.md to the task type, then follow the protocol in AGENTS.md."
+echo "Next: prune task.md to the task type, then invoke the task-protocol skill (or run /task)."
