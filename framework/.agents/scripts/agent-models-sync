@@ -39,7 +39,7 @@ REAL_CLAUDE_AGENTS="$DEST/.claude/agents"
 REAL_CLAUDE_CMDS="$DEST/.claude/commands"
 
 SCRATCH=""
-cleanup() { [ -n "$SCRATCH" ] && rm -rf "$SCRATCH"; }
+cleanup() { if [ -n "$SCRATCH" ]; then rm -rf "$SCRATCH"; fi; }
 trap cleanup EXIT
 
 if [ "$CHECK" -eq 1 ]; then
