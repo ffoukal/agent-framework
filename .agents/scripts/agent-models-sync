@@ -5,14 +5,25 @@
 # right now; OpenCode/Codex mapping columns stay in config.yml for a future re-enable
 # but are no longer generated (see AGENTS.md "Agent model tiers").
 # install.sh / update.sh call this same script, so there is one generator.
+#
+# --check: dry-run. Generates into a scratch dir and diffs against the real
+# .claude/agents/ + .claude/commands/ without writing anything. Exits non-zero and
+# prints the drift (stale/missing/orphaned files) if the generated output would
+# differ from what's on disk — for CI / "did anyone forget to re-sync" gating.
 set -eu
 
+CHECK=0
 case "${1:-}" in
   -h|--help)
-    echo "Usage: agent-models-sync"
-    echo "Regenerates .claude/agents/ adapters from .agents/project/config.yml."
-    echo "Run it after editing config.yml tiers/mapping."
+    echo "Usage: agent-models-sync [--check]"
+    echo "Regenerates .claude/agents/ + .claude/commands/ from .agents/project/config.yml."
+    echo "  --check   dry run: diff generated output against disk, write nothing,"
+    echo "            exit non-zero if they differ."
+    echo "Run it (without --check) after editing config.yml tiers/mapping."
     exit 0 ;;
+  --check) CHECK=1 ;;
+  "") : ;;
+  *) echo "error: unknown argument '${1:-}'" >&2; exit 2 ;;
 esac
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -24,8 +35,22 @@ CFG="$AGENTS_DIR/project/config.yml"
 [ -d "$AGENTS" ] || { echo "error: $AGENTS not found" >&2; exit 1; }
 [ -f "$CFG" ]   || { echo "error: $CFG not found" >&2; exit 1; }
 
-CLAUDE="$DEST/.claude/agents"
-mkdir -p "$CLAUDE"
+REAL_CLAUDE_AGENTS="$DEST/.claude/agents"
+REAL_CLAUDE_CMDS="$DEST/.claude/commands"
+
+SCRATCH=""
+cleanup() { [ -n "$SCRATCH" ] && rm -rf "$SCRATCH"; }
+trap cleanup EXIT
+
+if [ "$CHECK" -eq 1 ]; then
+  SCRATCH=$(mktemp -d)
+  CLAUDE="$SCRATCH/agents"
+  CLAUDE_CMDS="$SCRATCH/commands"
+else
+  CLAUDE="$REAL_CLAUDE_AGENTS"
+  CLAUDE_CMDS="$REAL_CLAUDE_CMDS"
+fi
+mkdir -p "$CLAUDE" "$CLAUDE_CMDS"
 
 # tier|effort of an agent from models.agents inline object
 agent_field() {
@@ -73,29 +98,64 @@ for f in "$AGENTS"/*.md; do
   } > "$CLAUDE/$agent.md"
 done
 
-# Prune generated adapters whose agent no longer exists (e.g. a renamed/removed role).
-# Only removes files carrying the GENERATED marker — never user-authored subagents.
-for a in "$CLAUDE"/*.md; do
-  [ -f "$a" ] || continue
-  name=$(basename "$a" .md)
-  if [ ! -f "$AGENTS/$name.md" ] && grep -q 'GENERATED — do not edit' "$a"; then
-    rm -f "$a"
-  fi
-done
+DRIFT=0
+report_drift() { echo "DRIFT: $1"; DRIFT=1; }
 
-# Remove any adapters previously generated for CLIs we no longer maintain (OpenCode,
-# Codex). Only removes GENERATED-marked files — never user-authored content.
-for dir in "$DEST/.opencode/agent" "$DEST/.opencode/command"; do
-  [ -d "$dir" ] || continue
-  for a in "$dir"/*.md; do
-    [ -f "$a" ] || continue
-    grep -q 'GENERATED — do not edit' "$a" && rm -f "$a"
+if [ "$CHECK" -eq 1 ]; then
+  # Compare generated agents against what's really on disk, without writing.
+  for g in "$CLAUDE"/*.md; do
+    [ -f "$g" ] || continue
+    name=$(basename "$g")
+    real="$REAL_CLAUDE_AGENTS/$name"
+    if [ ! -f "$real" ]; then
+      report_drift ".claude/agents/$name is missing (would be generated)"
+    elif ! diff -q "$g" "$real" >/dev/null 2>&1; then
+      report_drift ".claude/agents/$name is stale (content differs from config.yml)"
+      diff -u "$real" "$g" | sed 's/^/  /'
+    fi
   done
-  rmdir "$dir" 2>/dev/null || true
-done
-rmdir "$DEST/.opencode" 2>/dev/null || true
+  # Orphans: real generated adapters whose source agent no longer exists.
+  for a in "$REAL_CLAUDE_AGENTS"/*.md; do
+    [ -f "$a" ] || continue
+    name=$(basename "$a" .md)
+    if [ ! -f "$AGENTS/$name.md" ] && grep -q 'GENERATED — do not edit' "$a"; then
+      report_drift ".claude/agents/$name.md is orphaned (no matching .agents/agents/$name.md; would be removed)"
+    fi
+  done
+  # Orphaned OpenCode/Codex adapters (generation for them is paused).
+  for dir in "$DEST/.opencode/agent" "$DEST/.opencode/command"; do
+    [ -d "$dir" ] || continue
+    for a in "$dir"/*.md; do
+      [ -f "$a" ] || continue
+      grep -q 'GENERATED — do not edit' "$a" \
+        && report_drift "${a#"$DEST"/} is a stale OpenCode/Codex adapter (would be removed)"
+    done
+  done
+else
+  # Prune generated adapters whose agent no longer exists (e.g. a renamed/removed role).
+  # Only removes files carrying the GENERATED marker — never user-authored subagents.
+  for a in "$CLAUDE"/*.md; do
+    [ -f "$a" ] || continue
+    name=$(basename "$a" .md)
+    if [ ! -f "$AGENTS/$name.md" ] && grep -q 'GENERATED — do not edit' "$a"; then
+      rm -f "$a"
+    fi
+  done
 
-echo "Regenerated adapters from config.yml: .claude/agents/ (Claude Code only — see AGENTS.md)."
+  # Remove any adapters previously generated for CLIs we no longer maintain (OpenCode,
+  # Codex). Only removes GENERATED-marked files — never user-authored content.
+  for dir in "$DEST/.opencode/agent" "$DEST/.opencode/command"; do
+    [ -d "$dir" ] || continue
+    for a in "$dir"/*.md; do
+      [ -f "$a" ] || continue
+      grep -q 'GENERATED — do not edit' "$a" && rm -f "$a"
+    done
+    rmdir "$dir" 2>/dev/null || true
+  done
+  rmdir "$DEST/.opencode" 2>/dev/null || true
+
+  echo "Regenerated adapters from config.yml: .claude/agents/ (Claude Code only — see AGENTS.md)."
+fi
 
 if [ -n "$MISSING_TIERS" ]; then
   echo "" >&2
@@ -109,8 +169,6 @@ fi
 # --- slash commands: thin wrappers around the canonical prompts -------------
 # Generated for Claude Code (.claude/commands/) only right now. Same GENERATED marker
 # and prune rules as the agent adapters.
-CLAUDE_CMDS="$DEST/.claude/commands"
-mkdir -p "$CLAUDE_CMDS"
 
 emit_command() {
   name="$1"; desc="$2"; body="$3"
@@ -137,17 +195,49 @@ emit_command task "Advance the current task until the next human gate (subcomman
 
 Execution model (all routes except `status` and `change`): if `.agents/current-task` is empty or missing, run the intake interview in this session first. If the current phase is interactive (intake, specifier), hold that conversation in this session. Otherwise check progress.md frontmatter `type`: for `chore`/`fix` (short-circuit — see orchestrating-agents skill), dispatch the current phase agent (implementer/reviewer) DIRECTLY from this session — no orchestrator — and run the dispatch/integrate loop yourself, honoring the requested granularity, until a gate or DONE. For `feature`/multi-phase `spike`/`debug`, dispatch the `orchestrator` subagent instead — fresh, with no session history; it reads all state from `.agents/tasks/<id>/` and returns at gates. Pass it only: the task id, the granularity (until-gate | one-phase | stop-after <phase>), and the instruction to follow the orchestrating-agents skill. When it returns, relay its report: what ran, what it is waiting on, and that `/task` resumes. If this CLI cannot dispatch subagents, apply the orchestrating-agents skill manual fallback instead.'
 
-# Prune generated commands whose definition no longer exists upstream (this removes
-# the pre-1.x commands: task-new, task-continue, task-status, task-step, orchestrate).
-for c in "$CLAUDE_CMDS"/*.md; do
-  [ -f "$c" ] || continue
-  name=$(basename "$c" .md)
-  case "$name" in task) continue ;; esac
-  grep -q 'GENERATED — do not edit' "$c" && rm -f "$c"
-done
+if [ "$CHECK" -eq 1 ]; then
+  for g in "$CLAUDE_CMDS"/*.md; do
+    [ -f "$g" ] || continue
+    name=$(basename "$g")
+    real="$REAL_CLAUDE_CMDS/$name"
+    if [ ! -f "$real" ]; then
+      report_drift ".claude/commands/$name is missing (would be generated)"
+    elif ! diff -q "$g" "$real" >/dev/null 2>&1; then
+      report_drift ".claude/commands/$name is stale (content differs)"
+      diff -u "$real" "$g" | sed 's/^/  /'
+    fi
+  done
+  for c in "$REAL_CLAUDE_CMDS"/*.md; do
+    [ -f "$c" ] || continue
+    name=$(basename "$c" .md)
+    case "$name" in task) continue ;; esac
+    if grep -q 'GENERATED — do not edit' "$c"; then
+      report_drift ".claude/commands/$name.md is orphaned (no longer defined; would be removed)"
+    fi
+  done
 
-echo "Regenerated slash commands: .claude/commands/ (task — with step | status | change | stop-after routes)."
-echo ""
-echo "Note: OpenCode/Codex adapter generation is currently paused (Claude Code is the"
-echo "only actively maintained CLI). The mapping columns stay in config.yml — re-enable"
-echo "by restoring the OpenCode/Codex generation block in this script if needed again."
+  if [ "$DRIFT" -eq 0 ]; then
+    echo "OK: .claude/agents/ and .claude/commands/ match config.yml (no drift)."
+    exit 0
+  else
+    echo "" >&2
+    echo "FAIL: generated adapters/commands are out of sync with config.yml." >&2
+    echo "Run .agents/scripts/agent-models-sync (without --check) to apply." >&2
+    exit 1
+  fi
+else
+  # Prune generated commands whose definition no longer exists upstream (this removes
+  # the pre-1.x commands: task-new, task-continue, task-status, task-step, orchestrate).
+  for c in "$CLAUDE_CMDS"/*.md; do
+    [ -f "$c" ] || continue
+    name=$(basename "$c" .md)
+    case "$name" in task) continue ;; esac
+    grep -q 'GENERATED — do not edit' "$c" && rm -f "$c"
+  done
+
+  echo "Regenerated slash commands: .claude/commands/ (task — with step | status | change | stop-after routes)."
+  echo ""
+  echo "Note: OpenCode/Codex adapter generation is currently paused (Claude Code is the"
+  echo "only actively maintained CLI). The mapping columns stay in config.yml — re-enable"
+  echo "by restoring the OpenCode/Codex generation block in this script if needed again."
+fi
