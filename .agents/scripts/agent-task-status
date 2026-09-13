@@ -8,7 +8,7 @@ case "${1:-}" in
     echo "       agent-task-status --all"
     echo "Prints progress.md (state, Next, Recent log) and the task.md brief."
     echo "With --all (or --list): one line per task — id | type | status | phase | updated."
-    echo "If TASK-ID is omitted, uses .agents/current-task."
+    echo "If TASK-ID is omitted, uses .agents/tasks/.current."
     exit 0
     ;;
 esac
@@ -20,7 +20,7 @@ AGENTS_DIR=$(dirname "$SCRIPT_DIR")
 case "${1:-}" in
   --all|--list)
     CURRENT=""
-    [ -f "$AGENTS_DIR/current-task" ] && CURRENT=$(tr -d '[:space:]' < "$AGENTS_DIR/current-task")
+    [ -f "$AGENTS_DIR/tasks/.current" ] && CURRENT=$(tr -d '[:space:]' < "$AGENTS_DIR/tasks/.current")
     printf '%-16s %-8s %-16s %-14s %-20s %s\n' TASK TYPE STATUS PHASE UPDATED ''
     for _d in "$AGENTS_DIR"/tasks/*/; do
       [ -d "$_d" ] || continue
@@ -40,14 +40,14 @@ esac
 resolve_task() {
   if [ -n "${1:-}" ]; then
     printf '%s' "$1"
-  elif [ -f "$AGENTS_DIR/current-task" ]; then
-    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  elif [ -f "$AGENTS_DIR/tasks/.current" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/tasks/.current"
   fi
 }
 
 TASK_ID=$(resolve_task "${1:-}")
 if [ -z "$TASK_ID" ]; then
-  echo "error: no task id given and .agents/current-task is empty" >&2
+  echo "error: no task id given and .agents/tasks/.current is empty" >&2
   exit 2
 fi
 case "$TASK_ID" in

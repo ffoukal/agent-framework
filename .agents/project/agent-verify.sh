@@ -59,12 +59,7 @@ promoted() {
 # --- clean: handoff gate ---------------------------------------------------
 # Debug leftovers in the diff since the task's base commit (not the whole repo).
 clean_check() {
-  _base=${AGENT_BASE_COMMIT:-}
-  if [ -z "$_base" ] && [ -f .agents/current-task ]; then
-    _t=$(tr -d '[:space:]' < .agents/current-task)
-    _base=$(grep -E '^base_commit:' ".agents/tasks/$_t/progress.md" 2>/dev/null \
-            | head -1 | sed 's/^base_commit:[[:space:]]*//' | awk '{print $1}')
-  fi
+  _base=${AGENT_BASE_COMMIT:-}   # exported by the agent-verify dispatcher
   [ -n "$_base" ] || { echo "  SKIP  debug-leftovers (no base_commit)"; return 0; }
 
   # TODO tune the pattern to this stack's debug idioms.

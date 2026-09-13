@@ -35,7 +35,7 @@ versionado en `docs/`: `docs/specs/` (specs), `docs/plans/` (planes) y `docs/tas
     memory/          # arquitectura, dominio, code-map, testing, convenciones, decisiones
   tasks/             # estado de trabajo LOCAL (gitignoreado) — el updater NUNCA lo toca
     <TASK-ID>/       # una carpeta por tarea: task.md + progress.md (+ split-plan.md)
-  current-task       # id de la tarea activa (o vacío)
+    .current         # id de la tarea activa (o vacío) — local por dev, nunca se commitea
 ```
 
 El **protocolo universal** vive en `AGENTS.md` (raíz del repo). `CLAUDE.md` solo
@@ -226,7 +226,7 @@ rutee el modelo al subagente despachado.
 
 ## Qué archivos mirar primero
 
-1. `.agents/current-task` — qué tarea está activa.
+1. `.agents/tasks/.current` — qué tarea está activa.
 2. `.agents/tasks/<id>/progress.md` — la máquina de estados: status, fase, y la
    sección `## Next` (qué hacer ahora, qué agente usar, qué leer, cuándo parar).
 3. `.agents/tasks/<id>/task.md` — el documento lógico: brief, evolución, decisiones,
@@ -301,7 +301,7 @@ genera la receta de rebase para el siguiente.
 8. **close** — el agente terminal escribe el resumen durable en `docs/tasks/` y su
    línea en `INDEX.md`.
 9. **update** — cuando sale una versión nueva del framework, corrés `update.sh`; se
-   actualiza todo menos `project/`, `tasks/` y `current-task`.
+   actualiza todo menos `project/` y `tasks/` (que incluye `tasks/.current`).
 
 ## Prompts universales (CLIs sin slash commands)
 

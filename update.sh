@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # update.sh — update the installed framework in a destination repo.
-# Replaces framework-owned files only. NEVER touches project/, tasks/, current-task.
+# Replaces framework-owned files only. NEVER touches project/, tasks/ (incl. tasks/.current).
 set -eu
 
 REPO="${AGENT_FRAMEWORK_REPO:-your-org/agent-framework}"
@@ -11,7 +11,8 @@ Usage: update.sh [DEST_REPO]
 
 Updates the framework in DEST_REPO (default: current dir):
   - Replaces AGENTS.md, .agents/README.md, agents/, templates/, scripts/, VERSION.
-  - Does NOT touch .agents/project/, .agents/tasks/, .agents/current-task.
+  - Does NOT touch .agents/project/, .agents/tasks/.
+  - Migrates a legacy .agents/current-task to .agents/tasks/.current (local, gitignored).
   - Shows a git diff and leaves changes uncommitted for the human to commit.
 
 Framework source is resolved like install.sh (local checkout or GitHub release).
@@ -120,7 +121,7 @@ elif ! grep -q '@AGENTS.md' "$DEST/CLAUDE.md"; then
   echo "Re-added missing @AGENTS.md import to CLAUDE.md (existing content preserved)."
 fi
 
-echo "Updated framework files (incl. managed skills). NOT touched: project/, tasks/, current-task, unmarked skills."
+echo "Updated framework files (incl. managed skills). NOT touched: project/, tasks/, unmarked skills."
 
 # --- 2.1 .claude/settings.json: ensure git-rule enforcement (same as install) ---
 SETTINGS="$DEST/.claude/settings.json"
@@ -198,6 +199,24 @@ if ! grep -qE '^\.agents/test-logs/?$' "$GITIGNORE" 2>/dev/null; then
   echo ".agents/test-logs/" >> "$GITIGNORE"
   echo "Added .agents/test-logs/ to .gitignore (agent-test run logs)."
 fi
+
+# --- 2.3 migrate legacy .agents/current-task -> .agents/tasks/.current ------
+# The active-task pointer is per-dev local state; at the repo root of .agents/ it got
+# committed and collided between devs. Inside tasks/ it inherits the gitignore.
+LEGACY_CURRENT="$DEST/.agents/current-task"
+if [ -f "$LEGACY_CURRENT" ]; then
+  mkdir -p "$DEST/.agents/tasks"
+  if [ ! -s "$DEST/.agents/tasks/.current" ]; then
+    cp "$LEGACY_CURRENT" "$DEST/.agents/tasks/.current"
+  fi
+  rm -f "$LEGACY_CURRENT"
+  echo "Migrated .agents/current-task -> .agents/tasks/.current (local, gitignored)."
+  if git -C "$DEST" ls-files --error-unmatch .agents/current-task >/dev/null 2>&1; then
+    echo "NOTE: .agents/current-task was tracked. Stage its removal with:"
+    echo "  git rm --cached .agents/current-task"
+  fi
+fi
+
 if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then
   mkdir -p "$DEST/docs/tasks"
   cat > "$DEST/docs/tasks/INDEX.md" <<'EOF'

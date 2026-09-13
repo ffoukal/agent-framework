@@ -189,7 +189,7 @@ AGENTS.md            # slim always-loaded bootstrap (CLAUDE.md just imports it)
     agent-test.sh  agent-verify.sh  checks.sh
     memory/          # architecture, domain, code-map, testing, conventions, decisions
   tasks/<TASK-ID>/   # LOCAL working state (gitignored): task.md + progress.md
-  current-task       # active task id
+  tasks/.current     # active task id (local per dev, gitignored with tasks/)
 docs/specs|plans|tasks/   # durable, git-versioned: YYYY-MM-DD-<task-name>.md
 ```
 
@@ -388,7 +388,7 @@ Continue TASK-123 as implementer. Read `.agents/tasks/TASK-123/progress.md` and 
 ```
 
 Replaces `AGENTS.md`, `.agents/README.md`, `agents/`, `templates/`, `scripts/`,
-managed skills and `VERSION`; **never** touches `project/`, `tasks/` or `current-task`.
+managed skills and `VERSION`; **never** touches `project/` or `tasks/` (which holds `tasks/.current`).
 It shows the diff and leaves the commit to you.
 
 Distribution is via **GitHub Releases** with semver tags (`v1.0.0`, …) — no registry;

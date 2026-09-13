@@ -49,4 +49,15 @@ EOF
 fi
 
 [ -x "$IMPL" ] || { echo "error: $IMPL exists but is not executable (chmod +x it)" >&2; exit 2; }
+
+# Resolve the active task's base_commit here, so repo-owned implementations (which the
+# updater never touches) don't need to know where the active-task pointer lives.
+if [ -z "${AGENT_BASE_COMMIT:-}" ]; then
+  _task=$("$SCRIPT_DIR/agent-task-current")
+  if [ -n "$_task" ]; then
+    AGENT_BASE_COMMIT=$(grep -E '^base_commit:' "$(dirname "$SCRIPT_DIR")/tasks/$_task/progress.md" 2>/dev/null \
+      | head -1 | sed 's/^base_commit:[[:space:]]*//' | awk '{print $1}') || true
+    export AGENT_BASE_COMMIT
+  fi
+fi
 exec "$IMPL" "$@"

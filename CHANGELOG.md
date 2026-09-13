@@ -5,6 +5,22 @@ match `.agents/VERSION` and the GitHub release tags (`vX.Y.Z`).
 
 ## Unreleased
 
+### Active-task pointer moved to `.agents/tasks/.current` (breaking, auto-migrated)
+
+`.agents/current-task` was per-dev local state living outside the gitignored
+`tasks/`, so it got committed and collided between devs. It now lives at
+`.agents/tasks/.current` and inherits the existing `.agents/tasks/` gitignore (task
+ids can't start with `.`, so it never clashes with a task directory).
+
+- All task scripts, `/task`, `intake` and the `task-protocol` skill read/write the new
+  path.
+- `install.sh` and `update.sh` migrate a legacy `.agents/current-task` automatically
+  and, if it was tracked, print the `git rm --cached .agents/current-task` to run.
+- `agent-verify` now resolves the active task's `base_commit` and exports
+  `AGENT_BASE_COMMIT`, so repo-owned `agent-verify.sh` implementations no longer read
+  the pointer themselves (older copies keep working — they already check that
+  variable first).
+
 ### Verification, feature lists and readiness (harness-engineering pass)
 
 Closes the gaps found comparing the framework against the *Learn Harness Engineering*

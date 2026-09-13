@@ -7,7 +7,7 @@ usage() {
 Usage: agent-task-new TASK-ID "Goal"
 
 Creates .agents/tasks/TASK-ID/ with task.md and progress.md from templates,
-registers base_commit = current HEAD, and sets current-task.
+registers base_commit = current HEAD, and sets tasks/.current.
 Errors (without overwriting) if the task already exists.
 
 Low-level primitive: the documented entry point for new work is the intake agent
@@ -71,10 +71,10 @@ awk -v goal="$GOAL" '
   !done && $0 == "## Goal" { print goal; done=1 }
 ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 
-printf '%s\n' "$TASK_ID" > "$AGENTS_DIR/current-task"
+printf '%s\n' "$TASK_ID" > "$AGENTS_DIR/tasks/.current"
 
 echo "Created task $TASK_ID"
 echo "  dir:         $TASK_DIR"
 echo "  base_commit: $BASE_COMMIT"
-echo "  current-task set to $TASK_ID"
+echo "  current task (.agents/tasks/.current) set to $TASK_ID"
 echo "Next: prune task.md to the task type, then follow the protocol in AGENTS.md."

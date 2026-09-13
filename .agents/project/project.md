@@ -29,8 +29,8 @@ between the two copies of the framework content (see Gotchas).
   drafts for repos matching those stacks. No shell/Markdown detector exists (this
   repo's own stack), which is why this task (TASK-001) had to be done by hand.
 - `install.sh` — installs the framework + project template into a target repo.
-- `update.sh` — refreshes framework files in a target repo; never touches `project/`,
-  `tasks/`, or `current-task`.
+- `update.sh` — refreshes framework files in a target repo; never touches `project/`
+  or `tasks/` (which holds the active-task pointer `tasks/.current`).
 - `docs/` — supporting docs (specs land under `docs/specs/` in installed repos).
 - `.agents/` (this repo's own, dogfooded copy) — mirrors `framework/.agents/` plus
   this repo's own `tasks/` and `project/`.

@@ -6,7 +6,7 @@ case "${1:-}" in
   -h|--help)
     echo "Usage: agent-task-next [TASK-ID]"
     echo "Prints the '## Next' section of progress.md."
-    echo "If TASK-ID is omitted, uses .agents/current-task."
+    echo "If TASK-ID is omitted, uses .agents/tasks/.current."
     exit 0
     ;;
 esac
@@ -17,14 +17,14 @@ AGENTS_DIR=$(dirname "$SCRIPT_DIR")
 resolve_task() {
   if [ -n "${1:-}" ]; then
     printf '%s' "$1"
-  elif [ -f "$AGENTS_DIR/current-task" ]; then
-    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  elif [ -f "$AGENTS_DIR/tasks/.current" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/tasks/.current"
   fi
 }
 
 TASK_ID=$(resolve_task "${1:-}")
 if [ -z "$TASK_ID" ]; then
-  echo "error: no task id given and .agents/current-task is empty" >&2
+  echo "error: no task id given and .agents/tasks/.current is empty" >&2
   exit 2
 fi
 case "$TASK_ID" in

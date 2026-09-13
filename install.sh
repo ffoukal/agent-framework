@@ -17,7 +17,7 @@ Framework source resolution:
     $AGENT_FRAMEWORK_REPO (default your-org/agent-framework) via `gh`, falling back to
     `git clone --depth 1`.
 
-Never overwrites: .agents/project/, .agents/tasks/, .agents/current-task, and a
+Never overwrites: .agents/project/, .agents/tasks/ (incl. tasks/.current), and a
 CLAUDE.md that already has its own content.
 EOF
 }
@@ -336,6 +336,17 @@ fi
 if ! grep -qE '^\.agents/test-logs/?$' "$GITIGNORE" 2>/dev/null; then
   echo ".agents/test-logs/" >> "$GITIGNORE"
   echo "Added .agents/test-logs/ to .gitignore (agent-test run logs)."
+fi
+# Legacy active-task pointer (pre tasks/.current): move it under the gitignored tasks/.
+if [ -f "$DEST/.agents/current-task" ]; then
+  mkdir -p "$DEST/.agents/tasks"
+  [ -s "$DEST/.agents/tasks/.current" ] || cp "$DEST/.agents/current-task" "$DEST/.agents/tasks/.current"
+  rm -f "$DEST/.agents/current-task"
+  echo "Migrated .agents/current-task -> .agents/tasks/.current (local, gitignored)."
+  if git -C "$DEST" ls-files --error-unmatch .agents/current-task >/dev/null 2>&1; then
+    echo "NOTE: .agents/current-task was tracked. Stage its removal with:"
+    echo "  git rm --cached .agents/current-task"
+  fi
 fi
 mkdir -p "$DEST/docs/specs" "$DEST/docs/plans" "$DEST/docs/tasks"
 if [ ! -f "$DEST/docs/tasks/INDEX.md" ]; then

@@ -8,7 +8,7 @@ case "${1:-}" in
     echo "Usage: agent-task-check [TASK-ID]"
     echo "Validates protocol invariants for the task (config, progress frontmatter,"
     echo "Next section, Recent log, commit flow, close/resume). Exit != 0 on any failure."
-    echo "If TASK-ID is omitted, uses .agents/current-task."
+    echo "If TASK-ID is omitted, uses .agents/tasks/.current."
     exit 0
     ;;
 esac
@@ -19,14 +19,14 @@ AGENTS_DIR=$(dirname "$SCRIPT_DIR")
 resolve_task() {
   if [ -n "${1:-}" ]; then
     printf '%s' "$1"
-  elif [ -f "$AGENTS_DIR/current-task" ]; then
-    tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  elif [ -f "$AGENTS_DIR/tasks/.current" ]; then
+    tr -d '[:space:]' < "$AGENTS_DIR/tasks/.current"
   fi
 }
 
 TASK_ID=$(resolve_task "${1:-}")
 if [ -z "$TASK_ID" ]; then
-  echo "FAIL: no task id given and .agents/current-task is empty" >&2
+  echo "FAIL: no task id given and .agents/tasks/.current is empty" >&2
   exit 2
 fi
 case "$TASK_ID" in

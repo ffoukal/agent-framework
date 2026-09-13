@@ -33,7 +33,7 @@ CMD=$1; shift
 # --- resolve the plan file -------------------------------------------------
 resolve_task() {
   if [ -n "${1:-}" ]; then printf '%s' "$1"
-  elif [ -f "$AGENTS_DIR/current-task" ]; then tr -d '[:space:]' < "$AGENTS_DIR/current-task"
+  elif [ -f "$AGENTS_DIR/tasks/.current" ]; then tr -d '[:space:]' < "$AGENTS_DIR/tasks/.current"
   fi
 }
 
@@ -42,7 +42,7 @@ TASK_OVERRIDE=""
 find_plan() {
   _tid=$(resolve_task "${1:-}")
   if [ -z "$_tid" ]; then
-    echo "error: no task id given and .agents/current-task is empty" >&2; exit 2
+    echo "error: no task id given and .agents/tasks/.current is empty" >&2; exit 2
   fi
   _task_md="$AGENTS_DIR/tasks/$_tid/task.md"
   if [ ! -f "$_task_md" ]; then

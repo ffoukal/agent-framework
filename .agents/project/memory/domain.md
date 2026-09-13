@@ -35,8 +35,8 @@
 - A task always has exactly one `type` (`feature|fix|debug|chore|spike`), fixing its
   pipeline; type can only change via a logged, human-confirmed escalation route.
 - `framework/` content is never mixed with `.agents/project/` content — the updater
-  enforces this boundary mechanically (never touches `project/`, `tasks/`,
-  `current-task`).
+  enforces this boundary mechanically (never touches `project/` or
+  `tasks/`, which holds `tasks/.current`).
 - Generated adapters are always derived, never hand-authored; the source of truth is
   `.agents/agents/*.md` + `config.yml`.
 - Commit authorship rule (no AI co-author trailers) is universal regardless of

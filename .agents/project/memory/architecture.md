@@ -20,7 +20,7 @@ entirely in versioned Markdown, not in a process or database.
   `agent-git-guard` hook into `.claude/settings.json`.
 - **Updater** (`update.sh`): refreshes framework files in a target repo in place,
   respecting the directory boundary (never touches `.agents/project/`,
-  `.agents/tasks/`, `.agents/current-task`).
+  `.agents/tasks/`, incl. the active-task pointer `.agents/tasks/.current`).
 - **Detectors** (`detectors/*.sh`): stack-specific scripts (kotlin/go/node) that
   pre-fill `project.md`/`memory/` drafts with TODO markers for a human/agent to
   verify. No detector exists for shell/Markdown repos.

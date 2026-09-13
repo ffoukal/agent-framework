@@ -5,14 +5,14 @@ set -eu
 case "${1:-}" in
   -h|--help)
     echo "Usage: agent-task-current"
-    echo "Prints the active task id from .agents/current-task (empty if none)."
+    echo "Prints the active task id from .agents/tasks/.current (empty if none)."
     exit 0
     ;;
 esac
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 AGENTS_DIR=$(dirname "$SCRIPT_DIR")
-CURRENT="$AGENTS_DIR/current-task"
+CURRENT="$AGENTS_DIR/tasks/.current"
 
 if [ -f "$CURRENT" ]; then
   tr -d '[:space:]' < "$CURRENT"

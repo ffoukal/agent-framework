@@ -27,7 +27,7 @@ Before acting, every agent MUST:
    dispatched with an isolated brief that already inlines `commits.mode` and your
    resolved model/effort (nested dispatch under the orchestrator does this). In that
    case, trust the brief; don't re-read these files.
-1. Resolve the task id: if the user says "current task", read `.agents/current-task`.
+1. Resolve the task id: if the user says "current task", read `.agents/tasks/.current`.
 2. Read `.agents/tasks/<task-id>/progress.md` (state + Next) and `task.md` (at least
    frontmatter, Goal, and the sections your role needs).
 3. Read the durable docs the `task.md` frontmatter links (`spec:`, `plan:`) when your

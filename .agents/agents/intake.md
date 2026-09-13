@@ -12,12 +12,12 @@ feature task derived from a spike.
 ## Startup
 Invoke the `task-protocol` skill (its Startup section), then follow this role. Extra reads for this role:
 - `.agents/project/project.md` and `.agents/project/config.yml` (already in step 0).
-- `.agents/current-task` — if a task is already active, ask whether to continue it
+- `.agents/tasks/.current` — if a task is already active, ask whether to continue it
   instead of starting a new one.
 - `docs/tasks/INDEX.md` — for the recall step below.
 
 ## Role writes
-`task.md`, `progress.md`, `.agents/current-task`.
+`task.md`, `progress.md`, `.agents/tasks/.current`.
 
 ## Specific rules
 - Short checklist-guided interview (not a rigid script; if the user already gave the
@@ -62,7 +62,7 @@ Invoke the `task-protocol` skill (its Startup section), then follow this role. E
 ## Output format
 A created task directory under `.agents/tasks/<id>/` with `task.md` (pruned to the
 type, brief filled, related resumes linked) and `progress.md` (`## Next` pointing at
-the first pipeline agent); `current-task` set.
+the first pipeline agent); `tasks/.current` set.
 
 ## Classification rules
 
