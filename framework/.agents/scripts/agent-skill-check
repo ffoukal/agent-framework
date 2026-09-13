@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# agent-skill-check — structural linter for .agents/skills/*/SKILL.md.
+# Enforces the house format documented in the task-protocol / writing-skills
+# conventions mechanically, so a malformed skill is caught before it ships to every
+# consumer repo via update.sh. Exit non-zero and print findings on any failure.
+#
+# Checks per skill (see AGENTS.md "Team skills" + superpowers:writing-skills):
+#   - frontmatter has `name:` and it equals the skill's directory name.
+#   - frontmatter has a non-empty `description:`.
+#   - description length: soft cap at 500 chars (writing-skills: "keep under 500
+#     characters if possible" so the skill index doesn't truncate it into never
+#     triggering) — reported as a WARN, not a hard failure, since neither this repo
+#     nor writing-skills documents a hard enforced cutoff; see task.md for why this
+#     is a soft check rather than an invented hard threshold.
+#   - every `references/...`, `scripts/...`, `templates/...` path referenced in the
+#     body actually exists under the skill directory.
+#   - `agent-framework:managed` marker presence/absence: when this repo's own
+#     framework/.agents/skills/ source tree is present (dogfood checkout), a skill
+#     that also exists there must carry the marker, and one that doesn't must not —
+#     matching exactly what update.sh keys off of. In a plain consumer repo (no
+#     framework/ tree to compare against) this specific check is skipped since
+#     there is nothing to compare to; the marker's mere presence/absence is not an
+#     error on its own there.
+set -eu
+
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: agent-skill-check"
+    echo "Lints every .agents/skills/*/SKILL.md against the house format."
+    echo "Exit != 0 on any failure. Run standalone or from CI."
+    exit 0 ;;
+esac
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+AGENTS_DIR=$(dirname "$SCRIPT_DIR")
+REPO_ROOT=$(dirname "$AGENTS_DIR")
+SKILLS_DIR="$AGENTS_DIR/skills"
+FRAMEWORK_SKILLS="$REPO_ROOT/framework/.agents/skills"
+
+[ -d "$SKILLS_DIR" ] || { echo "error: $SKILLS_DIR not found" >&2; exit 1; }
+
+ERRORS=0
+fail() { echo "FAIL: $1" >&2; ERRORS=$((ERRORS + 1)); }
+warn() { echo "WARN: $1" >&2; }
+
+DESC_SOFT_CAP=500
+
+for dir in "$SKILLS_DIR"/*/; do
+  [ -d "$dir" ] || continue
+  name=$(basename "$dir")
+  skill="$dir/SKILL.md"
+
+  if [ ! -f "$skill" ]; then
+    fail "$name/ has no SKILL.md"
+    continue
+  fi
+
+  # Frontmatter is everything between the first two '---' lines.
+  FM=$(awk 'NR==1 && $0!="---"{exit} /^---[[:space:]]*$/{c++; next} c==1{print} c==2{exit}' "$skill")
+  if [ -z "$FM" ]; then
+    fail "$name/SKILL.md has no parseable YAML frontmatter (missing --- delimiters)"
+    continue
+  fi
+
+  FM_NAME=$(printf '%s\n' "$FM" | awk -F: '/^name:/{sub(/^name:[[:space:]]*/,""); print; exit}')
+  if [ -z "$FM_NAME" ]; then
+    fail "$name/SKILL.md frontmatter has no 'name:'"
+  elif [ "$FM_NAME" != "$name" ]; then
+    fail "$name/SKILL.md frontmatter name '$FM_NAME' does not match its directory '$name'"
+  fi
+
+  DESC=$(printf '%s\n' "$FM" | awk '/^description:/{sub(/^description:[[:space:]]*/,""); print; exit}')
+  if [ -z "$DESC" ]; then
+    fail "$name/SKILL.md frontmatter has no (or empty) 'description:'"
+  else
+    DESC_LEN=${#DESC}
+    if [ "$DESC_LEN" -gt "$DESC_SOFT_CAP" ]; then
+      warn "$name/SKILL.md description is $DESC_LEN chars (soft cap $DESC_SOFT_CAP) — risks truncation in the skill index, making it never trigger"
+    fi
+  fi
+
+  # agent-framework:managed marker correctness — only checkable against the
+  # framework's own source tree (this repo, dogfooding). In a plain consumer repo
+  # there is nothing to compare to, so skip rather than guess.
+  if [ -d "$FRAMEWORK_SKILLS" ]; then
+    HAS_MARKER=0
+    grep -q 'agent-framework:managed' "$skill" && HAS_MARKER=1
+    IS_FRAMEWORK_OWNED=0
+    [ -f "$FRAMEWORK_SKILLS/$name/SKILL.md" ] && IS_FRAMEWORK_OWNED=1
+
+    if [ "$IS_FRAMEWORK_OWNED" -eq 1 ] && [ "$HAS_MARKER" -eq 0 ]; then
+      fail "$name/SKILL.md is framework-owned (exists under framework/.agents/skills/) but is missing the agent-framework:managed marker"
+    elif [ "$IS_FRAMEWORK_OWNED" -eq 0 ] && [ "$HAS_MARKER" -eq 1 ]; then
+      fail "$name/SKILL.md carries the agent-framework:managed marker but is not a framework skill (no framework/.agents/skills/$name/) — update.sh would treat it as framework-owned and could delete it if the marker is ever removed upstream"
+    fi
+  fi
+
+  # Every references/..., scripts/..., templates/... path mentioned in the body must
+  # exist under the skill directory — but only when the skill actually organizes
+  # local assets that way (has at least one such subdirectory). Without that, a
+  # mention like "scripts/agent-plan" is repo-shorthand for `.agents/scripts/...`
+  # (as our own task-protocol/orchestrating-agents skills do), not a skill-local
+  # link, and flagging it would be a false positive — see task.md Implementation
+  # notes for this exact ambiguity in the house prose convention.
+  if [ -d "$dir/references" ] || [ -d "$dir/scripts" ] || [ -d "$dir/templates" ]; then
+    BODY=$(awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; next} c>=2{print}' "$skill")
+    REFS=$(printf '%s\n' "$BODY" \
+      | grep -oE '(^|[[:space:](`'"'"'"\[])(references|scripts|templates)/[A-Za-z0-9._/-]+' \
+      | grep -oE '(references|scripts|templates)/[A-Za-z0-9._/-]+' \
+      | sort -u)
+    if [ -n "$REFS" ]; then
+      while IFS= read -r ref; do
+        [ -n "$ref" ] || continue
+        if [ ! -e "$dir$ref" ]; then
+          fail "$name/SKILL.md references '$ref' which does not exist under $name/"
+        fi
+      done <<EOF
+$REFS
+EOF
+    fi
+  fi
+
+done
+
+if [ "$ERRORS" -eq 0 ]; then
+  echo "OK: all skills under $SKILLS_DIR pass structural checks."
+  exit 0
+else
+  echo "$ERRORS error(s) found across .agents/skills/." >&2
+  exit 1
+fi
