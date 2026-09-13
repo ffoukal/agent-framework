@@ -1,0 +1,51 @@
+name: ci
+
+# Self-check for the framework this repo distributes to N consumer repos via
+# install.sh/update.sh: a broken generator or a malformed skill must never ship
+# silently. Keep this minimal — first CI this repo has ever had.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: agent-models-sync --check (adapters match config.yml)
+        run: .agents/scripts/agent-models-sync --check
+
+      - name: agent-skill-check (skill structural lint)
+        run: .agents/scripts/agent-skill-check
+
+      - name: install.sh smoke test (fresh install into a scratch repo)
+        run: |
+          set -eu
+          DEST=$(mktemp -d)
+          ./install.sh "$DEST"
+          test -f "$DEST/AGENTS.md"
+          test -f "$DEST/.agents/VERSION"
+          test -f "$DEST/.agents/project/config.yml"
+          test -d "$DEST/.claude/agents"
+          test -f "$DEST/.claude/agents/implementer.md"
+          test -d "$DEST/.agents/skills/task-protocol"
+          echo "install.sh smoke test OK: $DEST"
+
+      - name: update.sh smoke test (re-apply over a stale install)
+        run: |
+          set -eu
+          DEST=$(mktemp -d)
+          ./install.sh "$DEST"
+          # Simulate drift: an older framework file left over from a previous version.
+          echo "stale content" >> "$DEST/AGENTS.md"
+          ./update.sh "$DEST"
+          grep -q 'stale content' "$DEST/AGENTS.md" && {
+            echo "update.sh did not replace the framework-owned AGENTS.md" >&2
+            exit 1
+          }
+          test -f "$DEST/AGENTS.md"
+          test -d "$DEST/.agents/skills/task-protocol"
+          echo "update.sh smoke test OK: $DEST"
